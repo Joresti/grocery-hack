@@ -1,0 +1,2417 @@
+openapi: 3.0.3
+info:
+  title: GroceryHack API
+  version: 1.0.0
+  description: |
+    API contract for the GroceryHack application.
+    All endpoints require Authorization header with Bearer token unless marked as public.
+    All timestamps are ISO 8601 UTC. All monetary values are decimal numbers.
+
+servers:
+  - url: /api/v1
+
+# ────────────────────────────────────────────────────────────
+# TAGS
+# ────────────────────────────────────────────────────────────
+tags:
+  - name: Landing
+    description: Single endpoint that loads all data for the main page
+  - name: Auth
+    description: Registration, login, token management
+  - name: Users
+    description: Profile, preferences, household
+  - name: Stores
+    description: Store locations and management
+  - name: Deals
+    description: Weekly deals and user-reported deals
+  - name: Meals
+    description: Shared meal pool and swiping
+  - name: UserRecipes
+    description: User-uploaded private recipes
+  - name: DealWatchlist
+    description: Hearted deal alerts
+  - name: ImportantItems
+    description: Important items list management and sharing
+  - name: WeeklyPlans
+    description: Generated weekly plans
+  - name: FlyerRequests
+    description: Flyer URL submissions and review
+  - name: Sharing
+    description: Send meals and plans to others
+  - name: Optimize
+    description: Smart list optimization
+  - name: Events
+    description: Analytics event tracking (trial)
+  - name: Admin
+    description: Admin-only endpoints for trial metrics
+
+# ────────────────────────────────────────────────────────────
+# PATHS
+# ────────────────────────────────────────────────────────────
+paths:
+
+  # ══════════════════════════════════════
+  # LANDING PAGE
+  # ══════════════════════════════════════
+
+  /landing:
+    get:
+      tags: [Landing]
+      summary: Load all data for the main page in a single call
+      description: |
+        Returns everything the landing page scroll needs to render:
+        savings summary, watchlist alerts, recipe alerts, swipeable meals,
+        liked meals preview (up to 6 with deal context),
+        store meal deals + shopping list, notable deals, user's important items,
+        and the current weekly plan if one exists.
+        Conditional sections (watchlist_alerts, recipe_alerts) may be empty arrays.
+      responses:
+        '200':
+          description: Full landing page data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LandingPage'
+
+  # ══════════════════════════════════════
+  # AUTH
+  # ══════════════════════════════════════
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, postal_code]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                display_name:
+                  type: string
+                postal_code:
+                  type: string
+                budget:
+                  type: number
+                dietary_restrictions:
+                  type: array
+                  items:
+                    type: string
+                max_stores:
+                  type: integer
+                  enum: [1, 2]
+                  default: 1
+                household_size:
+                  type: integer
+                  default: 1
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  token:
+                    type: string
+                  refresh_token:
+                    type: string
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  token:
+                    type: string
+                  refresh_token:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  refresh_token:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request a password reset email
+      security: []
+      description: |
+        Always returns 200 regardless of whether the email exists.
+        This prevents email enumeration attacks. If the email exists,
+        a reset link is sent. Token expires after 1 hour.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: If the email exists, a reset link has been sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent:
+                    type: boolean
+                    description: Always true — never reveal whether the email exists
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset password using a token from the reset email
+      security: []
+      description: |
+        Consumes the reset token and sets the new password.
+        Token can only be used once. Expired or used tokens return RESET_TOKEN_INVALID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, new_password]
+              properties:
+                token:
+                  type: string
+                new_password:
+                  type: string
+                  minLength: 8
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reset:
+                    type: boolean
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  # ══════════════════════════════════════
+  # USERS
+  # ══════════════════════════════════════
+
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+    patch:
+      tags: [Users]
+      summary: Update user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name:
+                  type: string
+                postal_code:
+                  type: string
+                budget:
+                  type: number
+                dietary_restrictions:
+                  type: array
+                  items:
+                    type: string
+                max_stores:
+                  type: integer
+                  enum: [1, 2]
+                household_size:
+                  type: integer
+                household_members:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/HouseholdMember'
+                household_names:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  # ── NOT MVP: Push notifications are v1 ──
+  # /users/me/push-token:
+  #   put:
+  #     tags: [Users]
+  #     summary: Register or update push notification token (v1)
+  #     requestBody:
+  #       required: true
+  #       content:
+  #         application/json:
+  #           schema:
+  #             type: object
+  #             required: [push_token]
+  #             properties:
+  #               push_token:
+  #                 type: string
+  #     responses:
+  #       '204':
+  #         description: Token saved
+
+  # ── NOT MVP: Taste profile weighting logic is v1 ──
+  # /users/me/taste-profile:
+  #   get:
+  #     tags: [Users]
+  #     summary: Get current taste profile (v1)
+  #     responses:
+  #       '200':
+  #         description: Taste profile
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               additionalProperties:
+  #                 type: number
+  #                 description: Weight between 0 and 1
+
+  # ══════════════════════════════════════
+  # STORES
+  # ══════════════════════════════════════
+
+  /stores/nearby:
+    get:
+      tags: [Stores]
+      summary: Get store locations within radius of user's location
+      description: Returns store locations with their brand info. Deals are per-brand, locations are per-address.
+      parameters:
+        - name: radius_km
+          in: query
+          schema:
+            type: number
+            default: 10
+        - name: lat
+          in: query
+          schema:
+            type: number
+          description: Override user's stored lat
+        - name: lng
+          in: query
+          schema:
+            type: number
+          description: Override user's stored lng
+      responses:
+        '200':
+          description: Nearby store locations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stores:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StoreLocation'
+
+  /stores/brands:
+    get:
+      tags: [Stores]
+      summary: Get all store brands
+      responses:
+        '200':
+          description: All store brands
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  brands:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StoreBrand'
+
+  # ══════════════════════════════════════
+  # DEALS
+  # ══════════════════════════════════════
+
+  /deals:
+    get:
+      tags: [Deals]
+      summary: Get active deals from nearby stores
+      parameters:
+        - name: store_brand_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter to a specific store brand
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Fuzzy search on item name
+      responses:
+        '200':
+          description: Active deals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deals:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Deal'
+
+  /deals/notable:
+    get:
+      tags: [Deals]
+      summary: Get top notable deals (up to 10)
+      responses:
+        '200':
+          description: Notable deals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deals:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Deal'
+                    maxItems: 10
+
+  # ── NOT MVP: User-reported deals are v2 ──
+  # /deals/report:
+  #   post:
+  #     tags: [Deals]
+  #     summary: Report an in-store deal (v2)
+  #     requestBody:
+  #       required: true
+  #       content:
+  #         multipart/form-data:
+  #           schema:
+  #             type: object
+  #             required: [store_id, item_name, sale_price, unit]
+  #             properties:
+  #               store_id:
+  #                 type: string
+  #                 format: uuid
+  #               item_name:
+  #                 type: string
+  #               sale_price:
+  #                 type: number
+  #               regular_price:
+  #                 type: number
+  #               unit:
+  #                 type: string
+  #               photo:
+  #                 type: string
+  #                 format: binary
+  #     responses:
+  #       '201':
+  #         description: Deal reported
+  #         content:
+  #           application/json:
+  #             schema:
+  #               $ref: '#/components/schemas/Deal'
+  #       '400':
+  #         $ref: '#/components/responses/BadRequest'
+
+  # ══════════════════════════════════════
+  # MEALS
+  # ══════════════════════════════════════
+
+  /meals:
+    get:
+      tags: [Meals]
+      summary: Get meals for swiping (filtered by user's dietary restrictions)
+      description: |
+        Returns meals from the shared pool + public user recipes,
+        filtered by the user's dietary restrictions,
+        excluding meals the user has already swiped.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+      responses:
+        '200':
+          description: Swipeable meals with attribution
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  meals:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SwipeableMeal'
+
+  /meals/{meal_id}:
+    get:
+      tags: [Meals]
+      summary: Get full meal detail with attribution
+      parameters:
+        - name: meal_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Meal detail with attribution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SwipeableMeal'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /meals/{meal_id}/swipe:
+    post:
+      tags: [Meals]
+      summary: Record a swipe (like or skip)
+      parameters:
+        - name: meal_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [liked]
+              properties:
+                liked:
+                  type: boolean
+      responses:
+        '200':
+          description: Swipe recorded, updated taste profile returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  preference:
+                    $ref: '#/components/schemas/UserMealPreference'
+                  taste_profile:
+                    type: object
+                    additionalProperties:
+                      type: number
+        '409':
+          description: Already swiped this meal
+
+  /meals/liked:
+    get:
+      tags: [Meals]
+      summary: Get all meals the user has liked
+      description: |
+        Returns every meal the user swiped right on, enriched with current deal context.
+        Each meal includes how many of its ingredients are on sale this week and which ones.
+        Sorted by most recently liked first.
+      responses:
+        '200':
+          description: Liked meals with deal context
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  meals:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LikedMeal'
+
+  # ══════════════════════════════════════
+  # USER RECIPES
+  # ══════════════════════════════════════
+
+  /recipes:
+    get:
+      tags: [UserRecipes]
+      summary: Get current user's recipes
+      responses:
+        '200':
+          description: User recipes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recipes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserRecipe'
+
+    post:
+      tags: [UserRecipes]
+      summary: Create a recipe manually
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRecipeCreate'
+      responses:
+        '201':
+          description: Recipe created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRecipe'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+
+  /recipes/{recipe_id}:
+    get:
+      tags: [UserRecipes]
+      summary: Get a specific recipe
+      parameters:
+        - name: recipe_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Recipe detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRecipe'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [UserRecipes]
+      summary: Update a recipe
+      parameters:
+        - name: recipe_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRecipeCreate'
+      responses:
+        '200':
+          description: Updated recipe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRecipe'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [UserRecipes]
+      summary: Delete a recipe
+      parameters:
+        - name: recipe_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Recipe deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /recipes/{recipe_id}/stats:
+    get:
+      tags: [UserRecipes]
+      summary: Get match stats for a user's recipe
+      description: Only accessible by the recipe owner. Shows how the recipe is performing in the shared pool.
+      parameters:
+        - name: recipe_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Recipe stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecipeStats'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          description: Not the recipe owner
+
+  /recipes/{recipe_id}/publish:
+    post:
+      tags: [UserRecipes]
+      summary: Toggle public visibility of a recipe
+      parameters:
+        - name: recipe_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [is_public]
+              properties:
+                is_public:
+                  type: boolean
+      responses:
+        '200':
+          description: Visibility updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRecipe'
+
+  # ══════════════════════════════════════
+  # DEAL WATCHLIST
+  # ══════════════════════════════════════
+
+  /watchlist:
+    get:
+      tags: [DealWatchlist]
+      summary: Get user's watched deals
+      responses:
+        '200':
+          description: Watchlist
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WatchlistItem'
+
+    post:
+      tags: [DealWatchlist]
+      summary: Heart a deal (add to watchlist)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deal_id]
+              properties:
+                deal_id:
+                  type: string
+                  format: uuid
+                  description: The deal being hearted — server extracts product info from the deal
+      responses:
+        '201':
+          description: Added to watchlist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WatchlistItem'
+
+  /watchlist/{watchlist_id}:
+    delete:
+      tags: [DealWatchlist]
+      summary: Remove from watchlist
+      parameters:
+        - name: watchlist_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Removed
+
+  # ══════════════════════════════════════
+  # IMPORTANT ITEMS
+  # ══════════════════════════════════════
+
+  /important-items:
+    get:
+      tags: [ImportantItems]
+      summary: Get all important items for the current user
+      parameters:
+        - name: active_only
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: If true, only return active items. If false, return all items including deactivated.
+      responses:
+        '200':
+          description: User's important items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ImportantItem'
+
+    post:
+      tags: [ImportantItems]
+      summary: Add a new important item
+      description: If an item with the same name already exists for this user, it is reactivated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                quantity:
+                  type: string
+      responses:
+        '201':
+          description: Item added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportantItem'
+
+  /important-items/{item_id}:
+    patch:
+      tags: [ImportantItems]
+      summary: Update an important item (name, quantity, or active status)
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                quantity:
+                  type: string
+                is_active:
+                  type: boolean
+                  description: Set to false to deactivate (item is preserved for history)
+      responses:
+        '200':
+          description: Updated item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportantItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ══════════════════════════════════════
+  # OPTIMIZE
+  # ══════════════════════════════════════
+
+  /optimize:
+    post:
+      tags: [Optimize]
+      summary: Optimize the user's smart list
+      description: |
+        Takes the user's active important items, nearby store deals,
+        liked meals, and preferences. Returns an optimized weekly plan
+        with meal suggestions, shopping list by store, and savings.
+        Generates both 1-store and 2-store plans.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                postal_code:
+                  type: string
+                  description: Override user's stored postal code
+                lat:
+                  type: number
+                  description: Override with current location
+                lng:
+                  type: number
+                store_location_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  description: Specific store locations to include (default is all nearby)
+                max_stores:
+                  type: integer
+                  enum: [1, 2]
+                  description: Override user's stored preference
+      responses:
+        '200':
+          description: Optimized plan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklyPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: No nearby stores or no active important items list
+
+  # ══════════════════════════════════════
+  # WEEKLY PLANS
+  # ══════════════════════════════════════
+
+  /plans:
+    get:
+      tags: [WeeklyPlans]
+      summary: Get user's past plans
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Past plans
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plans:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WeeklyPlanSummary'
+
+  /plans/{token}:
+    get:
+      tags: [WeeklyPlans]
+      summary: Get a plan by its public token
+      security: []
+      description: Public endpoint. No auth required. Used for shared plan links.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Full plan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklyPlan'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ══════════════════════════════════════
+  # FLYER REQUESTS
+  # ══════════════════════════════════════
+
+  /flyer-requests:
+    get:
+      tags: [FlyerRequests]
+      summary: Get current user's flyer requests
+      responses:
+        '200':
+          description: Flyer requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FlyerRequest'
+
+    post:
+      tags: [FlyerRequests]
+      summary: Submit a flyer URL for review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [flyer_url]
+              properties:
+                flyer_url:
+                  type: string
+                  format: uri
+                store_name:
+                  type: string
+      responses:
+        '201':
+          description: Request submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlyerRequest'
+
+  # ══════════════════════════════════════
+  # SHARING
+  # ══════════════════════════════════════
+
+  /share/meal:
+    post:
+      tags: [Sharing]
+      summary: Send a meal to someone ("Cook this for me?" / "I'll make this for you!")
+      description: |
+        Creates a meal_shares record and sends email/SMS to recipient.
+        For cook_for_me: email includes Accept/Decline buttons.
+        For make_for_you: informational only (no response needed).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [meal_id, recipient_contact, share_type]
+              properties:
+                meal_id:
+                  type: string
+                  format: uuid
+                meal_source:
+                  type: string
+                  enum: [meal, user_recipe]
+                  default: meal
+                  description: Whether the meal is from the shared pool or user recipes
+                recipient_name:
+                  type: string
+                recipient_contact:
+                  type: string
+                  description: Email address or phone number
+                share_type:
+                  type: string
+                  enum: [cook_for_me, make_for_you]
+                date:
+                  type: string
+                  format: date
+                time:
+                  type: string
+                  description: "HH:MM format"
+      responses:
+        '200':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent:
+                    type: boolean
+                  channel:
+                    type: string
+                    enum: [email, sms]
+                  share_token:
+                    type: string
+                    description: Token for the meal_shares record (can track status)
+
+  /share/{token}/respond:
+    get:
+      tags: [Sharing]
+      summary: Accept or decline a "cook for me" request
+      description: |
+        Unauthenticated endpoint. The token is from the email link.
+        Returns an HTML page confirming the action.
+        On accept: sends confirmation email to sender with calendar links for both parties.
+        On decline: sends polite decline email to sender.
+        Shares expire after 7 days — expired tokens return SHARE_EXPIRED.
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: action
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [accept, decline]
+      responses:
+        '200':
+          description: Response recorded, returns confirmation HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [accepted, declined]
+                  meal_name:
+                    type: string
+                  sender_name:
+                    type: string
+                  date:
+                    type: string
+                    format: date
+                  time:
+                    type: string
+                  calendar_url:
+                    type: string
+                    nullable: true
+                    description: Google Calendar link (only on accept with date)
+        '404':
+          description: Share not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /share/plan:
+    post:
+      tags: [Sharing]
+      summary: Share the full weekly plan with someone
+      description: Informational share only — no accept/decline flow.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan_token, recipient_contact]
+              properties:
+                plan_token:
+                  type: string
+                recipient_name:
+                  type: string
+                recipient_contact:
+                  type: string
+                  description: Email address or phone number
+      responses:
+        '200':
+          description: Plan shared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent:
+                    type: boolean
+                  channel:
+                    type: string
+                    enum: [email, sms]
+
+  # ══════════════════════════════════════
+  # EVENTS (trial analytics)
+  # ══════════════════════════════════════
+
+  /events:
+    post:
+      tags: [Events]
+      summary: Track analytics events (single or batch)
+      description: |
+        Accepts a single event or a batch of events. user_id is attached
+        from the JWT token. Events are inserted asynchronously — never
+        blocks the user experience. Rate limit: 100 events per user per minute.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [event_type]
+                  properties:
+                    event_type:
+                      type: string
+                    metadata:
+                      type: object
+                    session_id:
+                      type: string
+                    created_at:
+                      type: string
+                      format: date-time
+                - type: object
+                  required: [events]
+                  properties:
+                    events:
+                      type: array
+                      items:
+                        type: object
+                        required: [event_type]
+                        properties:
+                          event_type:
+                            type: string
+                          metadata:
+                            type: object
+                          session_id:
+                            type: string
+                          created_at:
+                            type: string
+                            format: date-time
+      responses:
+        '200':
+          description: Events received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /events/public:
+    post:
+      tags: [Events]
+      summary: Track public events (no auth required)
+      security: []
+      description: |
+        Only accepts share_link_opened, share_recipient_signed_up, and shared_plan_viewed events.
+        Requires a valid plan token or share token in metadata for verification.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event_type, metadata]
+              properties:
+                event_type:
+                  type: string
+                  enum: [share_link_opened, share_recipient_signed_up, shared_plan_viewed]
+                metadata:
+                  type: object
+      responses:
+        '200':
+          description: Event received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /events/pixel:
+    get:
+      tags: [Events]
+      summary: Email open tracking pixel
+      security: []
+      description: |
+        Returns a 1x1 transparent GIF. Records an email_opened event.
+        Deduplicates — only records first open per plan_token per user.
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: user
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 1x1 transparent GIF
+          content:
+            image/gif:
+              schema:
+                type: string
+                format: binary
+
+  /r:
+    get:
+      tags: [Events]
+      summary: Email click tracking redirect
+      security: []
+      description: |
+        Records an email_clicked event with the link target, then redirects
+        to the actual URL. Deduplicates first click only.
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: user
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '302':
+          description: Redirect to target URL
+
+  # ══════════════════════════════════════
+  # ADMIN
+  # ══════════════════════════════════════
+
+  /admin/trial-metrics:
+    get:
+      tags: [Admin]
+      summary: Get trial analytics dashboard metrics
+      description: |
+        Admin-only. Returns pre-computed metrics for the trial period
+        including email funnel, retention, engagement, and per-user breakdown
+        with engagement scores.
+      responses:
+        '200':
+          description: Trial metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrialMetrics'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+
+# ────────────────────────────────────────────────────────────
+# COMPONENTS
+# ────────────────────────────────────────────────────────────
+components:
+
+  # ══════════════════════════════════════
+  # SECURITY
+  # ══════════════════════════════════════
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # ══════════════════════════════════════
+  # SHARED RESPONSES
+  # ══════════════════════════════════════
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication required or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  # ══════════════════════════════════════
+  # SCHEMAS
+  # ══════════════════════════════════════
+  schemas:
+
+    LandingPage:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        savings_this_week:
+          type: number
+          description: Total savings from the current weekly plan
+        savings_ytd:
+          type: number
+          description: Sum of savings from all weekly plans this year
+        watchlist_alerts:
+          type: array
+          description: Empty array if no alerts fired this week
+          items:
+            type: object
+            properties:
+              item:
+                type: string
+              store:
+                type: string
+              store_address:
+                type: string
+              sale_price:
+                type: number
+              regular_price:
+                type: number
+              benchmark_price:
+                type: number
+              price_tier:
+                type: string
+                enum: [staple, premium, luxury]
+        recipe_alerts:
+          type: array
+          description: Empty array if no user recipes match deals this week
+          items:
+            type: object
+            properties:
+              recipe_id:
+                type: string
+                format: uuid
+              recipe_name:
+                type: string
+              ingredients_on_sale:
+                type: integer
+              estimated_cost:
+                type: number
+              regular_cost:
+                type: number
+              savings:
+                type: number
+        swipeable_meals:
+          type: array
+          description: Meals for the swipe deck, filtered and sorted, with attribution for public user recipes
+          items:
+            $ref: '#/components/schemas/SwipeableMeal'
+        liked_meals_preview:
+          type: array
+          description: Up to 6 most recently liked meals with deal context, for landing page preview. Full list via GET /meals/liked.
+          maxItems: 6
+          items:
+            $ref: '#/components/schemas/LikedMeal'
+        current_plan:
+          description: Null if no plan generated yet this week
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/WeeklyPlan'
+        notable_deals:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/Deal'
+        important_items:
+          type: array
+          description: User's active important items (recurring staples)
+          items:
+            $ref: '#/components/schemas/ImportantItem'
+
+    Error:
+      type: object
+      required: [error, code, message]
+      properties:
+        error:
+          type: boolean
+          enum: [true]
+        code:
+          type: string
+          description: Machine-readable error code
+          example: NOT_FOUND
+        message:
+          type: string
+          description: Human-readable message
+          example: No stores found near that postal code
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        display_name:
+          type: string
+        postal_code:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        budget:
+          type: number
+        dietary_restrictions:
+          type: array
+          items:
+            type: string
+        max_stores:
+          type: integer
+        household_size:
+          type: integer
+        household_members:
+          type: array
+          items:
+            $ref: '#/components/schemas/HouseholdMember'
+        household_names:
+          type: array
+          items:
+            type: string
+        taste_profile:
+          type: object
+          additionalProperties:
+            type: number
+        subscription_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    HouseholdMember:
+      type: object
+      properties:
+        name:
+          type: string
+        age:
+          type: integer
+        dietary_restrictions:
+          type: array
+          items:
+            type: string
+
+    StoreBrand:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        flyer_url:
+          type: string
+        logo_url:
+          type: string
+        scrape_status:
+          type: string
+          enum: [ok, failed, pending, disabled]
+        last_scraped_at:
+          type: string
+          format: date-time
+
+    StoreLocation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        store_brand_id:
+          type: string
+          format: uuid
+        brand_name:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        region:
+          type: string
+          description: Province (CA) or state (US)
+        postal_zip:
+          type: string
+          description: Postal code (CA) or zip code (US)
+        lat:
+          type: number
+        lng:
+          type: number
+        distance_km:
+          type: number
+          description: Calculated distance from user (only in nearby results)
+
+    Deal:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        store_brand_id:
+          type: string
+          format: uuid
+        store_brand_name:
+          type: string
+        store_location_id:
+          type: string
+          format: uuid
+          description: Set for user-reported deals (v2), null for flyer deals
+        item_name:
+          type: string
+        category:
+          type: string
+        sale_price:
+          type: number
+        regular_price:
+          type: number
+        unit:
+          type: string
+        deal_conditions:
+          type: string
+        percent_off:
+          type: number
+          description: Calculated if regular_price is known
+        valid_from:
+          type: string
+          format: date
+        valid_to:
+          type: string
+          format: date
+        source:
+          type: string
+          enum: [flyer, user_reported]
+
+    Nutrition:
+      type: object
+      properties:
+        calories:
+          type: number
+        protein_g:
+          type: number
+        carbs_g:
+          type: number
+        fat_g:
+          type: number
+        fiber_g:
+          type: number
+        sodium_mg:
+          type: number
+        per_serving:
+          type: boolean
+          default: true
+
+    Ingredient:
+      type: object
+      required: [name, quantity, unit]
+      properties:
+        name:
+          type: string
+        quantity:
+          type: string
+        unit:
+          type: string
+
+    Meal:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        tagline:
+          type: string
+        description:
+          type: string
+        instructions:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+            format: uri
+        ingredients:
+          type: array
+          items:
+            $ref: '#/components/schemas/Ingredient'
+        steps:
+          type: array
+          items:
+            type: string
+        prep_time_minutes:
+          type: integer
+        cook_time_minutes:
+          type: integer
+        servings:
+          type: integer
+        difficulty:
+          type: string
+          enum: [easy, medium]
+        filter_tags:
+          type: array
+          items:
+            type: string
+        taste_tags:
+          type: object
+        tips:
+          type: string
+        nutrition:
+          $ref: '#/components/schemas/Nutrition'
+        created_at:
+          type: string
+          format: date-time
+
+    MealAttribution:
+      type: object
+      description: Attribution fields for public user recipes in the shared pool
+      properties:
+        shared_by_name:
+          type: string
+          nullable: true
+          description: Uploader's display_name. Null for system-generated meals.
+        shared_by_initials:
+          type: string
+          nullable: true
+          description: First letter(s) of display_name, max 2 chars. Null for system meals.
+        weekly_match_count:
+          type: integer
+          description: Count of users who swiped right on this meal this week.
+
+    SwipeableMeal:
+      description: Meal with attribution fields, used in landing page and swipe deck
+      allOf:
+        - $ref: '#/components/schemas/Meal'
+        - $ref: '#/components/schemas/MealAttribution'
+
+    RecipeStats:
+      type: object
+      description: Performance stats for a user's public recipe
+      properties:
+        recipe_id:
+          type: string
+          format: uuid
+        is_public:
+          type: boolean
+        weekly_match_count:
+          type: integer
+          description: Users who swiped right this week
+        total_match_count:
+          type: integer
+          description: All-time right swipes
+
+    LikedMeal:
+      type: object
+      description: A meal the user liked, enriched with current deal context
+      properties:
+        meal:
+          $ref: '#/components/schemas/Meal'
+        liked_at:
+          type: string
+          format: date-time
+        ingredients_on_sale_count:
+          type: integer
+          description: Number of meal ingredients currently on sale at nearby stores
+        ingredients_on_sale:
+          type: array
+          description: Names of ingredients currently on sale
+          items:
+            type: string
+        estimated_cost:
+          type: number
+          nullable: true
+          description: Estimated total cost based on current deals. Null if no nearby deals.
+
+    UserRecipe:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        tagline:
+          type: string
+        description:
+          type: string
+        instructions:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+            format: uri
+        ingredients:
+          type: array
+          items:
+            $ref: '#/components/schemas/Ingredient'
+        steps:
+          type: array
+          items:
+            type: string
+        prep_time_minutes:
+          type: integer
+        cook_time_minutes:
+          type: integer
+        servings:
+          type: integer
+        difficulty:
+          type: string
+          enum: [easy, medium]
+        dietary_tags:
+          type: array
+          items:
+            type: string
+        taste_tags:
+          type: object
+        tips:
+          type: string
+        ingredient_keywords:
+          type: array
+          items:
+            type: string
+        cost_drivers:
+          type: array
+          items:
+            type: string
+        nutrition:
+          $ref: '#/components/schemas/Nutrition'
+        is_public:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UserRecipeCreate:
+      type: object
+      required: [name, ingredients]
+      properties:
+        name:
+          type: string
+        tagline:
+          type: string
+        description:
+          type: string
+        instructions:
+          type: string
+        ingredients:
+          type: array
+          items:
+            $ref: '#/components/schemas/Ingredient'
+        steps:
+          type: array
+          items:
+            type: string
+        prep_time_minutes:
+          type: integer
+        cook_time_minutes:
+          type: integer
+        servings:
+          type: integer
+        difficulty:
+          type: string
+          enum: [easy, medium]
+        dietary_tags:
+          type: array
+          items:
+            type: string
+        tips:
+          type: string
+        nutrition:
+          $ref: '#/components/schemas/Nutrition'
+        is_public:
+          type: boolean
+          default: false
+
+    UserMealPreference:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        meal_id:
+          type: string
+          format: uuid
+        liked:
+          type: boolean
+        swiped_at:
+          type: string
+          format: date-time
+
+    WatchlistItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        item_keyword:
+          type: string
+        product_name:
+          type: string
+        category:
+          type: string
+        subcategory:
+          type: string
+        product_metadata:
+          type: object
+        price_tier:
+          type: string
+          enum: [staple, premium, luxury]
+        benchmark_price:
+          type: number
+        benchmark_unit:
+          type: string
+        store_brand_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ImportantItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        quantity:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        deactivated_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    PlanStop:
+      type: object
+      properties:
+        store_brand_name:
+          type: string
+        store_address:
+          type: string
+        store_location_id:
+          type: string
+          format: uuid
+        store_brand_id:
+          type: string
+          format: uuid
+        meals:
+          type: array
+          items:
+            type: object
+            properties:
+              meal_id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              cost_per_serving:
+                type: number
+              total_cost:
+                type: number
+              savings:
+                type: number
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              quantity:
+                type: string
+              sale_price:
+                type: number
+              regular_price:
+                type: number
+              is_on_sale:
+                type: boolean
+              deal_note:
+                type: string
+              for_meal:
+                type: string
+                description: Which meal this ingredient is for (nullable for important items)
+        subtotal:
+          type: number
+
+    WeeklyPlan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        token:
+          type: string
+        week_of:
+          type: string
+          format: date
+        one_store_optimized:
+          type: object
+          description: Optimized plan for shopping at a single store
+          properties:
+            stops:
+              type: array
+              items:
+                $ref: '#/components/schemas/PlanStop'
+            total:
+              type: number
+            budget_remaining:
+              type: number
+            estimated_savings:
+              type: number
+        two_store_optimized:
+          type: object
+          description: Optimized plan for shopping at two stores. Same structure as one_store_optimized. Meals may appear under both stores with ingredients split across them.
+          nullable: true
+        watchlist_alerts:
+          type: array
+          items:
+            type: object
+            properties:
+              item:
+                type: string
+              store:
+                type: string
+              sale_price:
+                type: number
+              regular_price:
+                type: number
+              benchmark_price:
+                type: number
+              price_tier:
+                type: string
+                enum: [staple, premium, luxury]
+        recipe_alerts:
+          type: array
+          items:
+            type: object
+            properties:
+              recipe_id:
+                type: string
+                format: uuid
+              recipe_name:
+                type: string
+              ingredients_on_sale:
+                type: integer
+              estimated_cost:
+                type: number
+              regular_cost:
+                type: number
+              savings:
+                type: number
+        created_at:
+          type: string
+          format: date-time
+
+    WeeklyPlanSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        token:
+          type: string
+        week_of:
+          type: string
+          format: date
+        total:
+          type: number
+        savings:
+          type: number
+        meal_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    MealShare:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        token:
+          type: string
+        meal_id:
+          type: string
+          format: uuid
+        meal_source:
+          type: string
+          enum: [meal, user_recipe]
+        share_type:
+          type: string
+          enum: [cook_for_me, make_for_you]
+        recipient_name:
+          type: string
+          nullable: true
+        recipient_contact:
+          type: string
+        channel:
+          type: string
+          enum: [email, sms]
+        status:
+          type: string
+          enum: [pending, accepted, declined, expired]
+        date:
+          type: string
+          format: date
+          nullable: true
+        time:
+          type: string
+          nullable: true
+        responded_at:
+          type: string
+          format: date-time
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    FlyerRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        flyer_url:
+          type: string
+        store_name:
+          type: string
+        store_brand_id:
+          type: string
+          format: uuid
+          description: Set when approved and matched to a brand
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        review_message:
+          type: string
+        reviewed_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    TrialUserMetrics:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        email:
+          type: string
+        signed_up:
+          type: string
+          format: date-time
+        last_active:
+          type: string
+          format: date-time
+        total_sessions:
+          type: integer
+        total_swipes:
+          type: integer
+        swipe_right_ratio:
+          type: number
+        avg_swipe_session_duration_seconds:
+          type: number
+        viewed_shopping_list:
+          type: boolean
+        tapped_store_address:
+          type: boolean
+        shared_anything:
+          type: boolean
+        share_accept_rate:
+          type: number
+          nullable: true
+          description: accepted / total cook_for_me sent (null if none sent)
+        returned_week2:
+          type: boolean
+        completed_onboarding:
+          type: boolean
+        recipes_created:
+          type: integer
+        deals_hearted:
+          type: integer
+        important_items_count:
+          type: integer
+        optimizer_runs:
+          type: integer
+        flyer_requests_submitted:
+          type: integer
+        engagement_score:
+          type: integer
+          description: 0-100 weighted composite score
+
+    EmailBreakdown:
+      type: object
+      properties:
+        email_type:
+          type: string
+          enum: [welcome, weekly_plan, password_reset, share_cook_for_me, share_make_for_you, share_plan, share_accepted, share_declined, share_calendar_confirmation, trial_reminder]
+        sent:
+          type: integer
+        opened:
+          type: integer
+        open_rate:
+          type: number
+        clicked:
+          type: integer
+        click_rate:
+          type: number
+
+    TrialMetrics:
+      type: object
+      properties:
+        total_users:
+          type: integer
+
+        # Signup funnel
+        registrations:
+          type: integer
+        onboarding_completions:
+          type: integer
+        onboarding_completion_rate:
+          type: number
+
+        # Email funnel
+        emails_sent:
+          type: integer
+        emails_opened:
+          type: integer
+        email_open_rate:
+          type: number
+        emails_clicked:
+          type: integer
+        email_click_rate:
+          type: number
+        email_unsubscribes:
+          type: integer
+        email_unsubscribe_rate:
+          type: number
+        email_breakdown:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmailBreakdown'
+
+        # Retention
+        week1_users:
+          type: integer
+        week2_returners:
+          type: integer
+        week2_return_rate:
+          type: number
+        avg_sessions_per_user:
+          type: number
+        avg_session_duration_seconds:
+          type: number
+
+        # Swipe engagement
+        users_who_swiped:
+          type: integer
+        avg_meals_swiped_per_session:
+          type: number
+        avg_swipe_right_ratio:
+          type: number
+        users_who_viewed_recipe:
+          type: integer
+        avg_recipe_view_duration_seconds:
+          type: number
+
+        # Plan utility
+        users_who_viewed_shopping_list:
+          type: integer
+        users_who_tapped_store_address:
+          type: integer
+        swipe_to_store_rate:
+          type: number
+        users_who_revisited_plan:
+          type: integer
+        users_who_ran_optimizer:
+          type: integer
+
+        # Social
+        users_who_shared:
+          type: integer
+        total_meal_shares:
+          type: integer
+        total_plan_shares:
+          type: integer
+        share_accept_rate:
+          type: number
+          description: accepted / total cook_for_me shares
+        share_links_opened:
+          type: integer
+        share_signups:
+          type: integer
+        viral_coefficient:
+          type: number
+          description: share_recipient_signed_up / total shares
+
+        # Advanced
+        users_who_hearted_deal:
+          type: integer
+        users_who_created_recipe:
+          type: integer
+        users_who_published_recipe:
+          type: integer
+        users_who_used_feeling_lucky:
+          type: integer
+        users_who_submitted_flyer_request:
+          type: integer
+        users_who_added_important_items:
+          type: integer
+
+        # Pipeline health
+        last_scraper_run:
+          type: string
+          format: date-time
+          nullable: true
+        last_planner_run:
+          type: string
+          format: date-time
+          nullable: true
+        planner_users_processed:
+          type: integer
+        planner_users_skipped:
+          type: integer
+        claude_spend_this_month:
+          type: number
+          description: USD spent on Claude API this month
+
+        # Per-user breakdown
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrialUserMetrics'
+
+# ────────────────────────────────────────────────────────────
+# DEFAULT SECURITY
+# ────────────────────────────────────────────────────────────
+security:
+  - BearerAuth: []

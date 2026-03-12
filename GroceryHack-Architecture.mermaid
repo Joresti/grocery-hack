@@ -1,0 +1,120 @@
+graph TB
+    subgraph Users["👤 Users"]
+        A1["Sign up<br/>email, postal code, budget,<br/>diet, household size, max stores"]
+        A2["Submit store flyer URLs"]
+        A3["Submit grocery list weekly"]
+        A4["Swipe meals right/left"]
+        A5["Heart deals"]
+        A6["Report in-store deals (v2)<br/>+ photo of price tag"]
+    end
+
+    subgraph TuesdayCron["⏰ Tuesday Night — Flyer Scrape"]
+        B1["Fetch all store flyer URLs"]
+        B2["HTTP GET each flyer page"]
+        B3["Claude Haiku parses deals → JSON"]
+        B4["Validate + write to deals table<br/>(source: 'flyer')"]
+        B5["Flag failures → notify submitter"]
+    end
+
+    subgraph WednesdayCron["⏰ Wednesday AM — Plan Generation"]
+        C1["Load user profile + grocery list"]
+        C2["Query deals from nearby stores<br/>(flyer + user-reported)"]
+        C3["Check deal watchlist<br/>→ generate hero alerts"]
+        C4["Match existing meals from DB<br/>scored by taste profile + deal overlap"]
+        C5["Claude Sonnet generates<br/>remaining meals if needed"]
+        C6["Save new meals to DB<br/>if sufficiently different"]
+        C7["Claude Sonnet builds<br/>optimized shopping plans<br/>(1-store + 2-store)"]
+        C9["Send push notification<br/>+ email"]
+    end
+
+    subgraph App["📱 Ionic React App"]
+        direction TB
+        W0["Trial: Web app via browser<br/>v1: iOS + Android native"]
+        W1["Hero watchlist alert<br/>(if fired)"]
+        W2["Meal cards → tap to<br/>enter swipe mode"]
+        W3["Recipe modal<br/>(expand in place)"]
+        W4["Shopping list by store<br/>+ Google Maps links"]
+        W5["1/2 store toggle"]
+        W6["Top deals + heart button"]
+        W7["Report a deal (v2)<br/>camera + submission"]
+        W8["Sharing<br/>Cook this for me?<br/>I'll make this for you!<br/>Share this plan"]
+        W9["Feeling Lucky 🎰<br/>Random meal + person<br/>spinner"]
+    end
+
+    subgraph Preference["🧠 Preference Engine"]
+        P1["Taste profile<br/>(weighted tags from swipes<br/>+ staple deal hearts)"]
+        P2["Deal watchlist<br/>(luxury items with<br/>benchmark price)"]
+    end
+
+    subgraph DB["🗄️ Postgres"]
+        D1["users + taste_profile"]
+        D2["stores"]
+        D3["deals<br/>(source: flyer | user_reported)"]
+        D4["grocery_lists"]
+        D5["meals<br/>(grows organically)"]
+        D6["user_meal_preferences"]
+        D7["deal_watchlist"]
+        D8["weekly_plans"]
+    end
+
+    subgraph Ext["🔌 External"]
+        E1["Claude API"]
+        E2["Email — Resend/SES"]
+        E3["Geocoding"]
+        E4["Push — FCM / APNs"]
+        E5["SMS — Twilio"]
+    end
+
+    A1 --> D1
+    A2 --> D2
+    A3 --> D4
+    A4 --> P1
+    A5 --> P2
+    A6 -->|"source: user_reported"| D3
+
+    P1 --> D6
+    P1 --> D1
+    P2 --> D7
+
+    B1 --> B2 --> B3 --> B4
+    B2 -.->|fails| B5
+
+    C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7 --> C9
+
+    B3 <--> E1
+    C5 <--> E1
+    C7 <--> E1
+    C9 --> E2
+    C9 --> E4
+    D2 --> E3
+
+    B1 -.-> D2
+    B4 -.-> D3
+    C1 -.-> D1
+    C1 -.-> D4
+    C2 -.-> D3
+    C3 -.-> D7
+    C4 -.-> D5
+    C4 -.-> D1
+    C6 -.-> D5
+    C7 -.-> D8
+
+    W2 -.-> D5
+    W6 -.-> D7
+    W1 -.-> D8
+    W4 -.-> D8
+    W7 -.-> D3
+
+    W8 --> E2
+    W8 --> E5
+
+    W9 -.-> D1
+    W9 -.-> D5
+
+    style Users fill:#e3f2fd,stroke:#1976D2,color:#000
+    style TuesdayCron fill:#fff3e0,stroke:#F57C00,color:#000
+    style WednesdayCron fill:#e8f5e9,stroke:#388E3C,color:#000
+    style App fill:#e0f7fa,stroke:#00838F,color:#000
+    style Preference fill:#FFF9C4,stroke:#F9A825,color:#000
+    style DB fill:#f3e5f5,stroke:#7B1FA2,color:#000
+    style Ext fill:#fbe9e7,stroke:#E64A19,color:#000

@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+dist/
+build/
+www/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Capacitor
+android/
+ios/
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Large files / installers
+*.deb
+*.dmg
+*.exe
+*.msi
+*.zip
+*.tar.gz
+
+# Chrome/Puppeteer
+google-chrome-*.deb
+
+# MCP config (local machine-specific)
+.mcp.json
