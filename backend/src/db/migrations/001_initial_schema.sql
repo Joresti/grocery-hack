@@ -1,7 +1,9 @@
 -- ============================================================
--- GroceryHack Database Schema v2
+-- GroceryHack Initial Schema Migration
 -- PostgreSQL 15+
 -- ============================================================
+
+BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
@@ -13,7 +15,6 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 CREATE TABLE users (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email                   TEXT NOT NULL UNIQUE,
-    password_hash           TEXT,
     display_name            TEXT,
     postal_code             TEXT NOT NULL,
     lat                     DOUBLE PRECISION,
@@ -339,8 +340,6 @@ CREATE TABLE usage_tracking (
 -- Use user_id = NULL for system-wide tracking (e.g. pipeline runs, global monthly spend)
 CREATE INDEX idx_usage_tracking_service_period ON usage_tracking (service, period, period_key);
 CREATE INDEX idx_usage_tracking_user ON usage_tracking (user_id, service, period, period_key);
-CREATE UNIQUE INDEX idx_usage_tracking_user_conflict ON usage_tracking (service, user_id, period, period_key) WHERE user_id IS NOT NULL;
-CREATE UNIQUE INDEX idx_usage_tracking_global_conflict ON usage_tracking (service, period, period_key) WHERE user_id IS NULL;
 
 
 -- ============================================================
@@ -404,3 +403,5 @@ CREATE TRIGGER trg_user_recipes_updated_at
 
 CREATE TRIGGER trg_usage_tracking_updated_at
     BEFORE UPDATE ON usage_tracking FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+COMMIT;

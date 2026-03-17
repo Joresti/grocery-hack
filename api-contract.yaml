@@ -1971,6 +1971,10 @@ components:
           type: string
           format: uuid
           nullable: true
+        store_brand_name:
+          type: string
+          nullable: true
+          description: Brand name resolved from store_brand_id for display convenience
         created_at:
           type: string
           format: date-time

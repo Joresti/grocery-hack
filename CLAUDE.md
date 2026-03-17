@@ -81,6 +81,16 @@ groceryhack/
 
 ## Critical Rules
 
+### Validate frontend in Chrome after every change
+After writing or modifying any frontend code, validate it in a real Chrome browser before marking the work complete:
+1. Ensure Chrome is running with `--remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug-profile`
+2. Navigate to the relevant page
+3. Check for runtime errors (console exceptions)
+4. Verify the page renders correctly (visible text, layout)
+5. Test user interactions (login, form submit, navigation) where applicable
+
+If Chrome MCP tools are available, use them. If not, use the Chrome DevTools Protocol directly via python3+websockets on port 9222. This applies to agents too — any agent writing frontend code must validate its output in the browser before reporting success.
+
 ### Read specs before coding
 Before implementing any feature, read:
 - `schema.sql` — database tables, constraints, indexes

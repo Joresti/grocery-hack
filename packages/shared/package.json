@@ -1,0 +1,14 @@
+{
+  "name": "@groceryhack/shared",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "main": "./types.ts",
+  "types": "./types.ts",
+  "exports": {
+    "./types": "./types.ts",
+    "./types.js": "./types.ts",
+    "./constants": "./constants.ts",
+    "./constants.js": "./constants.ts"
+  }
+}

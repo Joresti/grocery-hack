@@ -1,0 +1,15 @@
+export { HeartIcon } from './HeartIcon';
+export { SwipeLeftIcon } from './SwipeLeftIcon';
+export { SwipeRightIcon } from './SwipeRightIcon';
+export { ShareIcon } from './ShareIcon';
+export { MapPinIcon } from './MapPinIcon';
+export { ChefHatIcon } from './ChefHatIcon';
+export { ListIcon } from './ListIcon';
+export { StarIcon } from './StarIcon';
+export { AlertIcon } from './AlertIcon';
+export { CloseIcon } from './CloseIcon';
+export { PlusIcon } from './PlusIcon';
+export { TrashIcon } from './TrashIcon';
+export { CheckIcon } from './CheckIcon';
+export { SpinnerIcon } from './SpinnerIcon';
+export { LogoIcon } from './LogoIcon';

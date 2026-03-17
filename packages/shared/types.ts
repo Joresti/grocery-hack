@@ -307,6 +307,7 @@ export interface WatchlistItem {
 
 export interface FlyerRequest {
   id: string;
+  userId: string;
   flyerUrl: string;
   storeName: string | null;
   storeBrandId: string | null;
@@ -392,6 +393,7 @@ export interface GroceryPlan {
   total: number;
   budgetRemaining: number;
   estimatedSavings: number;
+  unmatchedItems?: PlanShoppingItem[];
 }
 
 export interface WatchlistAlert {

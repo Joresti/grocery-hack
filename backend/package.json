@@ -1,0 +1,45 @@
+{
+  "name": "@groceryhack/backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "seed": "tsx src/db/seed.ts",
+    "seed:reset": "psql -f ../schema.sql && tsx src/db/seed.ts",
+    "migrate": "tsx src/db/migrate.ts",
+    "migrate:status": "tsx src/db/migrateStatus.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@groceryhack/shared": "*",
+    "bcrypt": "^5.1.0",
+    "cors": "^2.8.0",
+    "dotenv": "^17.3.1",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.0.0",
+    "jsonwebtoken": "^9.0.0",
+    "node-cron": "^3.0.0",
+    "pg": "^8.13.0",
+    "puppeteer": "^23.0.0",
+    "stripe": "^17.0.0",
+    "twilio": "^5.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.0",
+    "@types/cors": "^2.8.0",
+    "@types/express": "^4.17.0",
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "@types/node-cron": "^3.0.0",
+    "@types/pg": "^8.11.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}
