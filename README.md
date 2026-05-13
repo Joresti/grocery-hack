@@ -2,7 +2,7 @@
 
 GroceryHack is a deal-first weekly meal planner for Canadian grocery shoppers. The premise: pull this week's flyers from local stores, find what's on sale, and assemble a weekly meal plan plus a shopping list whose ingredients line up with the deals. The project is a TypeScript monorepo — Ionic React + Capacitor on the client, Node.js + Express + Postgres on the server, with scheduled pipelines and a fleet of Claude Code skills for flyer extraction.
 
-This is a pre-MVP solo project at the scaffolded-system stage. The schema, API contract, route/service/query files, and frontend pages are in place; some components are stubs. The interesting engineering on `main` today is in two places: the **ten Claude Code scraping skills** (one per Canadian grocery banner) plus the meta-skill that generates new ones, and the **spec-first development workflow** encoded as fourteen reusable slash commands. A hybrid retrieval, LLM match validation, and Opus plan-reviewer pipeline was also designed and implemented; it was never wired into a live service and was removed from `main` (see [What was removed and why](#what-was-removed-and-why)). The design is preserved in git history at commit `546baa8`.
+This is a pre-MVP solo project at the scaffolded-system stage. The schema, API contract, route/service/query files, and frontend pages are in place; some components are stubs. The interesting engineering on `main` today is in two places: the **ten Claude Code scraping skills** (one per Canadian grocery banner) plus the meta-skill that generates new ones, and the **spec-first development workflow** encoded as fourteen reusable slash commands. A hybrid retrieval, LLM match validation, and Opus plan-reviewer pipeline was also designed and implemented; it was never wired into a live service and was removed from `main` (see [What was removed and why](#what-was-removed-and-why)). The design is preserved in git history at commit `bd861af`.
 
 This README documents the current state of `main`, not aspirational state.
 
@@ -62,7 +62,7 @@ The single LLM integration path live on `main` is `backend/src/lib/claude.ts` �
 
 Six AI modules were designed as part of a hybrid retrieval, validation, and review pipeline for the weekly shopping plan. They were never imported by any service, route, pipeline, or test — they sat in the tree as orphan code alongside scaffold-state versions of `services/landing.ts` and `pipelines/planner.ts`. The integration that would have wired them in was lost to an unrelated `git filter-repo` operation that hard-reset the working tree.
 
-Rather than reconstruct unfinished integration code or ship orphans alongside a scaffold, the modules were removed in commit `5573a55`. The commit message documents each module in full. The source remains in commit `546baa8`. The brief summary:
+Rather than reconstruct unfinished integration code or ship orphans alongside a scaffold, the modules were removed in commit `495b054`. The commit message documents each module in full. The source remains in commit `bd861af`. The brief summary:
 
 | Module | What it did |
 |---|---|
@@ -73,7 +73,7 @@ Rather than reconstruct unfinished integration code or ship orphans alongside a 
 | `db/queries/shoppingList.ts` | Single-CTE 3-phase ingredient↔deal retrieval. FTS on `tsv_product_type` (precision), FTS on `tsv_item_name` for unmatched keywords (fallback), pgvector HNSW on the BGE embedding for unmatched keywords with cosine distance < 0.15 (semantic long-tail). Restricted to deals at store locations within haversine ≤ 20 km. |
 | `migrations/003_match_verdicts.sql` | `match_verdicts` table + 15 pre-seeded known-false-positive pairs. |
 
-The architectural idea — FTS for precision, embedding fallback for the long tail, LLM validation against a permanent cache to filter false positives at zero marginal cost — is intact in `546baa8` for anyone reading this project as a portfolio artifact.
+The architectural idea — FTS for precision, embedding fallback for the long tail, LLM validation against a permanent cache to filter false positives at zero marginal cost — is intact in `bd861af` for anyone reading this project as a portfolio artifact.
 
 ---
 
@@ -170,7 +170,7 @@ This pattern would extend cleanly to the removed `claude -p` subscription CLI ca
 - **TypeScript 5.4** everywhere — `strict: true`, no `any`, ESM modules
 - **Node.js** for backend (`tsx watch` in dev, `tsc → node dist` in production) and pipelines
 - **Express 4.21**, `cors`, `express-rate-limit`
-- **PostgreSQL 15+** with `pgcrypto`, `pg_trgm` (the removed retrieval pipeline added `vector` and `tsvector` generated columns — see `546baa8`)
+- **PostgreSQL 15+** with `pgcrypto`, `pg_trgm` (the removed retrieval pipeline added `vector` and `tsvector` generated columns — see `bd861af`)
 - **`pg 8.13`** for raw parameterized SQL — no ORM
 - **`@anthropic-ai/sdk 0.39`** for paid Claude calls
 - **`puppeteer 23`** — used by the legacy `pipelines/scraper.ts` (wired into the scheduler but architecturally replaced by the Claude Code skills; see `docs/pipelines/scraper-pipeline.md` and `Status` below)
