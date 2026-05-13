@@ -1,0 +1,89 @@
+{
+  "skill_name": "parse-flyer-metro",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Scrape the Metro flyer at https://www.metro.ca/en/flyer and extract all deals as JSON",
+      "expected_output": "A JSON array of 500+ deal objects with item_name, brand, category, sale_price, regular_price, unit, unit_size, deal_conditions, and price_type fields. Weighted items should have unit='lb' and per-lb pricing. Multi-buy items should have price_type='multi_buy' and deal_conditions like '2 for $7.00'.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "extracts_500_plus_deals",
+          "type": "programmatic",
+          "check": "JSON output contains at least 500 deal objects"
+        },
+        {
+          "name": "all_deals_have_item_name",
+          "type": "programmatic",
+          "check": "Less than 2% of deals have null/empty item_name"
+        },
+        {
+          "name": "all_deals_have_sale_price",
+          "type": "programmatic",
+          "check": "Less than 5% of deals have null/zero sale_price"
+        },
+        {
+          "name": "weighted_items_use_lb",
+          "type": "programmatic",
+          "check": "Weighted items (per-weight produce, meat) use unit='lb' not unit='each'"
+        },
+        {
+          "name": "multi_buy_detected",
+          "type": "programmatic",
+          "check": "At least 1 deal has price_type='multi_buy' and deal_conditions contains 'for $'"
+        },
+        {
+          "name": "categories_mapped",
+          "type": "programmatic",
+          "check": "Categories are mapped to pipeline values (produce, meat, seafood, dairy, etc.) not Metro's raw categories"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Parse Metro's online flyer (metro.ca/en/flyer). I need all the produce and meat deals this week with prices.",
+      "expected_output": "A filtered list of produce and meat deals with accurate pricing. Should correctly identify weighted/per-lb items in these categories.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "includes_produce_deals",
+          "type": "programmatic",
+          "check": "Output includes deals with category 'produce' or 'Fruits & Vegetables'"
+        },
+        {
+          "name": "includes_meat_deals",
+          "type": "programmatic",
+          "check": "Output includes deals with category 'meat' or 'Meat & Poultry'"
+        },
+        {
+          "name": "weighted_produce_per_lb",
+          "type": "programmatic",
+          "check": "Weighted produce items show per-lb pricing (not avg. ea. price)"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Run drift detection on the Metro flyer page at metro.ca/en/flyer to check if selectors are still valid",
+      "expected_output": "A drift detection report showing selector hit rates (should be 8/8 or close), DOM path verification, element count, and page weight metrics. All checks should pass for the current page.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "selector_hit_rate_check",
+          "type": "programmatic",
+          "check": "Reports a selector hit rate of at least 6/8 (75%)"
+        },
+        {
+          "name": "dom_path_verified",
+          "type": "programmatic",
+          "check": "Reports DOM path and confirms not inside iframe"
+        },
+        {
+          "name": "element_count_in_range",
+          "type": "programmatic",
+          "check": "Initial element count is between 30-70"
+        }
+      ]
+    }
+  ]
+}

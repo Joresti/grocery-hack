@@ -1,0 +1,239 @@
+{
+  "meta": {
+    "store": "Metro",
+    "url": "https://www.metro.ca/en/flyer",
+    "actualUrl": "https://www.metro.ca/en/online-grocery/flyer?sortOrder=relevance&filter=%3Arelevance%3Adeal%3AFlyer+%26+Deals#filterAnchor",
+    "timestamp": "2026-03-30",
+    "pageTitle": "Flyer & deals | Metro",
+    "storeLocation": "Metro Fennell Plaza (Hamilton, ON)"
+  },
+  "checks": {
+    "selectorHitRate": {
+      "status": "PASS",
+      "score": "8/8",
+      "scorePct": 100,
+      "details": {
+        "cardContainer": {
+          "selector": ".default-product-tile",
+          "count": 309,
+          "status": "HIT"
+        },
+        "dataProductName": {
+          "selector": ".default-product-tile[data-product-name]",
+          "count": 307,
+          "status": "HIT"
+        },
+        "dataMainPrice": {
+          "selector": ".default-product-tile [data-main-price]",
+          "count": 307,
+          "status": "HIT"
+        },
+        "title": {
+          "selector": ".default-product-tile .head__title",
+          "count": 307,
+          "status": "HIT"
+        },
+        "unitDetails": {
+          "selector": ".default-product-tile .head__unit-details",
+          "count": 294,
+          "status": "HIT"
+        },
+        "regularPrice": {
+          "selector": ".default-product-tile .pricing__before-price",
+          "count": 293,
+          "status": "HIT"
+        },
+        "salePrice": {
+          "selector": ".default-product-tile .pricing__sale-price",
+          "count": 307,
+          "status": "HIT"
+        },
+        "unitPrice": {
+          "selector": ".default-product-tile .pricing__secondary-price",
+          "count": 307,
+          "status": "HIT"
+        }
+      },
+      "interpretation": "No structural drift on CSS selectors. All 8 selectors return results. 2 cards out of 309 lack data-product-name (likely non-product tiles in carousel)."
+    },
+    "domPathFingerprint": {
+      "status": "PASS",
+      "domPath": "div.primary > div.layout--mini-template > div.module-template > div.carousel-template > div.slick-list > div.slick-track > div.slick-slide > div.default-product-tile",
+      "inIframe": false,
+      "baseline": "body > div > ... > .default-product-tile.tile-product.plp-tile",
+      "interpretation": "Cards are NOT inside an iframe. The first card found is in a carousel (slick-slide), but grid cards follow the same .default-product-tile pattern. No shadow DOM detected."
+    },
+    "elementCountStability": {
+      "status": "PASS",
+      "initialLoadCount": 70,
+      "currentCount": 309,
+      "expectedRange": "30-70 on initial load",
+      "displayedTotal": 1564,
+      "loadMoreNeeded": true,
+      "interpretation": "Initial load of 70 cards is within expected range (30-70). Total displayed is 1,564 deals which matches baseline. Only 309 loaded so far (Load More not fully clicked)."
+    },
+    "pageWeightFingerprint": {
+      "status": "WARN",
+      "current": {
+        "htmlSizeKB": 1620,
+        "scriptCount": 95,
+        "stylesheetCount": 4,
+        "iframeCount": 20
+      },
+      "baseline": {
+        "htmlSizeKB": "300-1500",
+        "scriptCount": "30-60",
+        "stylesheetCount": "5-15",
+        "iframeCount": "8-15"
+      },
+      "deviations": {
+        "htmlSizeKB": "SLIGHTLY ABOVE BASELINE (1620KB vs 300-1500KB) - expected with partially loaded products",
+        "scriptCount": "ABOVE BASELINE (95 vs 30-60) - possible new analytics/tracking scripts added",
+        "stylesheetCount": "BELOW BASELINE (4 vs 5-15) - possible CSS consolidation, not a concern",
+        "iframeCount": "ABOVE BASELINE (20 vs 8-15) - additional tracking/ad iframes"
+      },
+      "interpretation": "Script count (95) and iframe count (20) are above baseline. This suggests additional third-party scripts were added but does NOT indicate a framework/platform change. No 3x deviation in any metric."
+    },
+    "buttonLabelDrift": {
+      "status": "WARN",
+      "labels": {
+        "gridView": {
+          "expected": "Grid View",
+          "actual": "View the flyer in grid view ... Grid View",
+          "status": "PASS",
+          "note": "Label text includes aria/screen-reader text but 'Grid View' is still present"
+        },
+        "completeFlyer": {
+          "expected": "Complete Flyer (via a.complete-flyer selector)",
+          "actual": "Complete Flyer (via button.complete-flyer selector)",
+          "status": "DRIFT_DETECTED",
+          "note": "Element changed from <a> to <button>. The class 'complete-flyer' is still present but the tag changed. Skill selector 'a.complete-flyer' will NOT match. Must update to 'button.complete-flyer' or '.complete-flyer'."
+        },
+        "loadMore": {
+          "expected": "Load More Deals",
+          "actual": "Load More Deals",
+          "status": "PASS"
+        },
+        "acceptCookies": {
+          "expected": "Accept All",
+          "actual": "NOT FOUND (already accepted in previous session)",
+          "status": "PASS",
+          "note": "Cookie banner was already dismissed. Cannot verify label text."
+        }
+      },
+      "interpretation": "DRIFT: Complete Flyer tab changed from <a> to <button>. The skill's 'a.complete-flyer' selector will fail. Fallback text-match in the skill will still work. Recommend updating selector to '.complete-flyer' (tag-agnostic)."
+    },
+    "httpStatusSoft404": {
+      "status": "PASS",
+      "isErrorPage": false,
+      "matchedSignals": [],
+      "titleTag": "Flyer & deals | Metro",
+      "interpretation": "No error signals detected. Page title confirms valid flyer page."
+    },
+    "redirectTracking": {
+      "status": "WARN",
+      "currentUrl": "https://www.metro.ca/en/online-grocery/flyer?sortOrder=relevance&filter=%3Arelevance%3Adeal%3AFlyer+%26+Deals#filterAnchor",
+      "expectedPattern": "/en/flyer",
+      "urlMatch": false,
+      "actualPathname": "/en/online-grocery/flyer",
+      "queryParams": "sortOrder=relevance&filter=%3Arelevance%3Adeal%3AFlyer+%26+Deals",
+      "hash": "#filterAnchor",
+      "interpretation": "URL redirected from /en/flyer to /en/online-grocery/flyer with filter parameters. This is a route change. The skill's documented URL (metro.ca/en/flyer) still works via redirect, but the canonical path has changed. The query params and hash suggest the Grid View + Complete Flyer state is now URL-encoded."
+    },
+    "temporalCoherence": {
+      "status": "PASS",
+      "dateFound": "NO DATE FOUND (expected -- Metro grid view lacks visible dates)",
+      "interpretation": "As expected, Metro's grid view does not display flyer dates. This is normal behavior documented in the baseline."
+    },
+    "stepCompletionVerification": {
+      "gridViewSwitch": {
+        "flippStillVisible": false,
+        "gridCardsVisible": true,
+        "status": "PASS",
+        "interpretation": "Grid view is active. Flipp flipbook iframe is not visible."
+      },
+      "completeFlyer": {
+        "tabActive": true,
+        "tabElement": "button.active.toggle-gridTiles.complete-flyer",
+        "cardCount": 309,
+        "status": "PASS",
+        "interpretation": "Complete Flyer tab is active and showing products."
+      },
+      "loadMoreStatus": {
+        "displayedTotal": 1564,
+        "loadedCards": 309,
+        "fullyLoaded": false,
+        "status": "INFO",
+        "interpretation": "Load More has not been fully clicked (309 of 1564 loaded). This is expected for drift detection -- we only need initial load to verify selectors."
+      }
+    },
+    "tabStructureDrift": {
+      "status": "INFO",
+      "tabs": [
+        {
+          "text": "My Suggestions",
+          "tag": "A",
+          "className": "suggestions-foryou",
+          "isActive": false
+        },
+        {
+          "text": "Complete Flyer",
+          "tag": "BUTTON",
+          "className": "active toggle-gridTiles complete-flyer",
+          "isActive": true
+        },
+        {
+          "text": "My Coupons",
+          "tag": "BUTTON",
+          "className": "showCoupons",
+          "isActive": false
+        }
+      ],
+      "interpretation": "Tab structure is mixed: 'My Suggestions' is an <a> tag while 'Complete Flyer' and 'My Coupons' are <button> tags. This is inconsistent but functional."
+    },
+    "dataAttributeIntegrity": {
+      "status": "PASS",
+      "totalCards": 309,
+      "coverage": {
+        "data-product-name": { "count": 307, "pct": 99.4 },
+        "data-product-brand": { "count": 291, "pct": 94.2 },
+        "data-product-category-en": { "count": 307, "pct": 99.4 },
+        "data-discount-percent": { "count": 285, "pct": 92.2 },
+        "data-is-weighted": { "count": 307, "pct": 99.4 },
+        "data-product-code": { "count": 307, "pct": 99.4 }
+      },
+      "interpretation": "All data attributes are present at expected rates. Brand at 94% (some unbranded produce items expected). Discount percent at 92% (some items without explicit discounts)."
+    },
+    "moiLoyaltyPoints": {
+      "status": "PASS",
+      "promoPointsSelector": ".promo-points[data-dimension-9]",
+      "count": 42,
+      "sampleValue": "125",
+      "interpretation": "Moi loyalty points selector still works. 42 items have point offers."
+    },
+    "contentVolume": {
+      "status": "PASS",
+      "displayedTotal": 1564,
+      "expectedRange": "500-2000",
+      "interpretation": "1,564 deals is within the expected range for Metro's Complete Flyer tab."
+    }
+  },
+  "summary": {
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "passCount": 10,
+    "warnCount": 3,
+    "failCount": 0,
+    "criticalDrift": [],
+    "warnings": [
+      "Complete Flyer tab changed from <a> to <button> -- skill selector 'a.complete-flyer' will fail, but fallback text-match works. Update selector to '.complete-flyer'.",
+      "URL path changed from /en/flyer to /en/online-grocery/flyer (redirect still works from old URL).",
+      "Script count (95) and iframe count (20) above baseline -- possible new third-party scripts, no platform change detected."
+    ],
+    "recommendedActions": [
+      "Update SKILL.md: change 'a.complete-flyer' selector to '.complete-flyer' or 'button.complete-flyer'",
+      "Update SKILL.md: document new canonical URL path /en/online-grocery/flyer",
+      "Update drift-detection.md: adjust page weight baselines (scripts: 80-100, iframes: 15-25)",
+      "No urgent action required -- all core extraction selectors and data attributes are intact"
+    ]
+  }
+}

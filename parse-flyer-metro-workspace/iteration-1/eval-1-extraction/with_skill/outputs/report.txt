@@ -1,0 +1,60 @@
+Metro Flyer Extraction Report
+==============================
+Date: 2026-03-30
+Store: Metro Fennell Plaza (Hamilton, ON)
+URL: https://www.metro.ca/en/flyer
+View: Grid View > Complete Flyer
+
+Extraction Summary
+------------------
+Total displayed deals on page: 1,564
+Total product tiles loaded: 1,558 (99.6% of displayed total)
+Skipped (null name): 2
+Skipped (no price): 0
+Skipped (non-grocery): 0
+Duplicates removed: 358
+Final unique deals: 1,198
+
+Drift Detection
+---------------
+Selector hit rate: 8/8 (100%) - no structural drift
+DOM path: .default-product-tile found in main document (not iframe)
+Error page signals: none detected
+Page title: "Flyer & deals | Metro"
+
+Count Per Category
+------------------
+  pantry: 266
+  frozen: 159
+  snacks: 155
+  beverages: 136
+  dairy: 98
+  deli: 95
+  produce: 81
+  bakery: 61
+  meat: 57
+  seafood: 26
+  personal_care: 25
+  household: 20
+  other: 16
+  baby: 3
+
+Null Rates
+----------
+  item_name: 0/1198 (0%)
+  brand: 85/1198 (7%)
+  category: 0/1198 (0%)
+  sale_price: 0/1198 (0%)
+  regular_price: 85/1198 (7%)
+  unit: 0/1198 (0%)
+  unit_size: 32/1198 (3%)
+  deal_conditions: 932/1198 (78%)
+  price_type: 0/1198 (0%)
+
+Notes
+-----
+- brand null rate of 7% is within expected range (produce/deli items are often unbranded)
+- regular_price null rate of 7% is within expected range (some items lack strikethrough pricing)
+- deal_conditions null rate of 78% is expected (most items are simple sale prices without multi-buy or loyalty points)
+- unit_size null rate of 3% is within expected range (some weighted items lack explicit size text)
+- All core fields (item_name, category, sale_price, unit, price_type) have 0% null rate
