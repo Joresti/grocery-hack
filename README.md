@@ -345,6 +345,7 @@ These are the rough edges a senior reviewer would notice on a first read.
 - **`HouseholdMember` schema is mid-rename.** `types.ts` introduced `ageBracket: MemberAgeBracket` to replace `age: number`. The corresponding Zod schema in `schemas/users.ts` was part of the lost-then-not-restored set and is still on the old shape. This is a known boundary error to be fixed before any live use.
 - **SMS and geocoding are stubs.** Twilio is wired but the send path is a `console.log`. The geocoder returns a hardcoded Hamilton lat/lng for any postal code.
 - **No CI, no deploy story, no error tracking, no metrics, no structured logger.** `lib/logger.ts` is a 32-line `console.log` wrapper. Any production move would start here.
+- **`npm audit` reports 17 unpatched advisories** (8 moderate, 9 high) — axios via twilio, basic-ftp via puppeteer, esbuild via vite, and bcrypt 5 as a direct backend dep. Resolving the bcrypt and vite ones requires major-version upgrades and was deferred past the MVP push. None are exploitable in a non-deployed local-development context.
 - **No production-grade observability of the LLM integrations.** Spend limits are tracked in Postgres but there is no dashboard or alerting. Token consumption and per-user cost shape are visible only via the `/check-spend` slash command.
 
 ---
