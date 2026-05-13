@@ -117,8 +117,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps): React.Re
     return [...new Set(
       members
         .map(m => m.ageBracket)
-        .filter(b => KID_BRACKETS.has(b))
-    )] as KidAgeBracket[];
+        .filter((b): b is KidAgeBracket => b !== undefined && KID_BRACKETS.has(b))
+    )];
   }, [members]);
 
   const memberDietaryNotes = useMemo(() => {
@@ -365,7 +365,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps): React.Re
             <h3 style={s.sectionTitle}>Kids Summary</h3>
             <div style={s.kidsSummary}>
               {members
-                .filter(m => KID_BRACKETS.has(m.ageBracket))
+                .filter((m): m is HouseholdMember & { ageBracket: KidAgeBracket } =>
+                  m.ageBracket !== undefined && KID_BRACKETS.has(m.ageBracket))
                 .map((m, i) => (
                   <p key={`${m.name}-${i}`} style={s.kidEffect}>
                     {getKidEffectText(m.ageBracket as KidAgeBracket, m.name)}

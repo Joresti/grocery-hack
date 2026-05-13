@@ -21,6 +21,9 @@ export type ShareStatus = 'pending' | 'accepted' | 'declined' | 'expired';
 export type ShareAction = 'accept' | 'decline';
 export type TrackedService = 'claude' | 'twilio' | 'email' | 'geocode';
 export type UsagePeriod = 'daily' | 'monthly';
+export type MemberAgeBracket = 'under_2' | 'picky_2_5' | 'expanding_6_12' | 'teen_13_plus' | 'adult';
+export type KidAgeBracket = 'under_2' | 'picky_2_5' | 'expanding_6_12' | 'teen_13_plus';
+export type CookingEffort = 'quick' | 'moderate' | 'ambitious';
 
 export type EventType =
   // ── Account lifecycle ──
@@ -100,7 +103,15 @@ export type EventType =
   | 'pipeline_scraper_completed'      // {brands_scraped, deals_found, errors}
   | 'pipeline_planner_completed'      // {users_processed, users_skipped, meals_generated, total_cost_usd}
   | 'pipeline_planner_user_skipped'   // {user_id, reason}
-  | 'pipeline_spend_limit_hit';       // {service: TrackedService, percentage, period_key}
+  | 'pipeline_spend_limit_hit'        // {service: TrackedService, percentage, period_key}
+
+  // ── Settings ──
+  | 'settings_opened'                 // {}
+  | 'household_member_added'          // {age_bracket: MemberAgeBracket}
+  | 'household_member_removed'        // {age_bracket: MemberAgeBracket}
+  | 'dietary_restriction_toggled'     // {restriction: string, enabled: boolean}
+  | 'cooking_effort_changed'          // {effort: CookingEffort}
+  | 'max_stores_changed';             // {max_stores: MaxStores}
 
 // Email subtypes for metadata.email_type
 export type EmailType =
@@ -121,7 +132,8 @@ export type EmailType =
 
 export interface HouseholdMember {
   name: string;
-  age: number;
+  age?: number;
+  ageBracket?: MemberAgeBracket;
   dietaryRestrictions: string[];
 }
 
@@ -170,6 +182,8 @@ export interface User {
   householdSize: number;
   householdMembers: HouseholdMember[];
   householdNames: string[];
+  kidAgeBrackets?: KidAgeBracket[];
+  cookingEffort?: CookingEffort;
   tasteProfile: TasteProfile;
   subscriptionActive: boolean;
   createdAt: string;
@@ -497,6 +511,34 @@ export interface UpdateUserRequest {
   householdSize?: number;
   householdMembers?: HouseholdMember[];
   householdNames?: string[];
+  kidAgeBrackets?: KidAgeBracket[];
+  cookingEffort?: CookingEffort;
+}
+
+export interface ShoppingListRecipeDeal {
+  dealId: string;
+  matchedIngredient: string;
+  itemName: string;
+  storeBrandName: string;
+  regularPrice: number | null;
+  salePrice: number;
+  percentOff: number | null;
+}
+
+export interface ShoppingListRecipe {
+  id: string;
+  name: string;
+  tagline?: string | null;
+  source: MealSource;
+  ingredientsOnSaleCount: number;
+  totalIngredients: number;
+  storesUsed: Array<{ storeBrandId: string; storeBrandName: string }>;
+  matchingDeals: ShoppingListRecipeDeal[];
+}
+
+export interface ShoppingListResponse {
+  recipes: ShoppingListRecipe[];
+  pagination: { total: number };
 }
 
 export interface CreateStoreBrandRequest {
