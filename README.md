@@ -60,9 +60,13 @@ The single LLM integration path live on `main` is `backend/src/lib/claude.ts` �
 
 ## What was removed and why
 
-Six AI modules were designed as part of a hybrid retrieval, validation, and review pipeline for the weekly shopping plan. They were never imported by any service, route, pipeline, or test — they sat in the tree as orphan code alongside scaffold-state versions of `services/landing.ts` and `pipelines/planner.ts`. The integration that would have wired them in was lost to an unrelated `git filter-repo` operation that hard-reset the working tree.
+GroceryHack made the same MVP cost trade-off twice: use the `claude -p` subscription CLI instead of the metered Anthropic SDK wherever an LLM call appears, accepting higher latency and a Claude-Code-on-the-developer's-machine dependency in exchange for near-zero marginal cost.
 
-Rather than reconstruct unfinished integration code or ship orphans alongside a scaffold, the modules were removed in commit `495b054`. The commit message documents each module in full. The source remains in commit `bd861af`. The brief summary:
+The live half is the scraping pipeline. An earlier version called the Claude Haiku API directly from a Puppeteer scraper — fast, fully automatable, billed per token. The current path on `main` is the ten `parse-flyer-*` Claude Code skills driving Chrome via CDP and using `claude -p` for any LLM step. The metered API is the more durable long-term solution (SLAs, server-side portability, no subscription dependency); the subscription pattern is the deliberate MVP shortcut and would flip back on day one of production.
+
+The same pattern shaped a designed-but-not-shipped retrieval / validation / review pipeline. The match validator was meant to filter false positives like "butter" ↔ "peanut butter crackers" via `claude -p`, caching verdicts permanently in `match_verdicts` so each ingredient↔product pair was checked at most once. The Opus plan reviewer was meant to send assembled plans to Claude Opus 4 via `claude -p` for structured corrections. Local `@xenova/transformers` embeddings and Postgres FTS handled retrieval without an API call at all.
+
+Six modules implementing this side were never wired into `services/landing.ts` or `pipelines/planner.ts` — the integration was in flight and lost before being committed. Rather than reconstruct it for the MVP push, they were removed in commit `495b054`. The source remains in commit `bd861af`.
 
 | Module | What it did |
 |---|---|
