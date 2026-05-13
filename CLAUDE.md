@@ -122,8 +122,14 @@ Before calling any paid external service (Claude, Twilio, Resend/SES, OpenCage),
 
 This applies to both user-triggered calls (optimizer, sharing) and pipeline calls (scraper, planner). Pipeline runs that hit the cap must log which users were skipped. See `docs/architecture/env-spec.md` for all limit variables and `schema.sql` table 13 for the tracking schema.
 
-### No Python
-The entire project is TypeScript. Pipelines (scraping, plan generation) run as Node.js scripts scheduled with node-cron. Use Puppeteer for page rendering (screenshot + visible text extraction) and @anthropic-ai/sdk for Claude API calls. See `docs/pipelines/scraper-pipeline.md` for the full scraper specification.
+### No Python in application code
+Application code (frontend, backend services, routes, queries, schemas, pipelines) is TypeScript. Pipelines (scraping, plan generation) run as Node.js scripts scheduled with node-cron, using Puppeteer for page rendering and `@anthropic-ai/sdk` for Claude API calls. See `docs/pipelines/scraper-pipeline.md` for the full scraper specification.
+
+The one exception is the browser-bridge helpers used by the Claude Code scraping skills:
+- `backend/scripts/cdp.py` — WSL → Windows Chrome DevTools Protocol bridge. Connects to a headed Chrome on `localhost:9222` over WebSocket and exposes a CLI (`goto`, `screenshot`, `scroll`, `eval`, `click`, `download`, `print_pdf`). Python is used here because the websocket-based CDP attach is more reliable from a Python helper than from a Node child process running in WSL.
+- `backend/scripts/parallel_scrape.py` — multi-tab parallel driver built on top of `cdp.py` for stores that paginate via `?page=N` (Loblaw Digital).
+
+Both scripts are thin transport wrappers and contain no domain logic. Domain logic — extraction, parsing, dedup — lives in the `.claude/skills/parse-flyer-*/` skills and runs in the Claude Code session.
 
 ## Coding Conventions
 
