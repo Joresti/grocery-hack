@@ -9,6 +9,7 @@
 // ────────────────────────────────────────────────────────────
 
 export type MaxStores = 1 | 2;
+export type UserRole = 'account_holder' | 'family_member';
 export type Difficulty = 'easy' | 'medium';
 export type DealSource = 'flyer' | 'user_reported';
 export type ScrapeStatus = 'ok' | 'failed' | 'pending' | 'disabled';
@@ -186,6 +187,7 @@ export interface User {
   cookingEffort?: CookingEffort;
   tasteProfile: TasteProfile;
   subscriptionActive: boolean;
+  accountHolderId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -768,6 +770,12 @@ export interface ShareRespondResult {
   date: string | null;
   time: string | null;
   calendarUrl: string | null;
+}
+
+export interface FamilyPlanResponse {
+  holderDisplayName: string | null;
+  holderSavingsThisWeek: number;
+  plan: WeeklyPlan;
 }
 
 export interface ApiError {

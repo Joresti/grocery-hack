@@ -15,6 +15,7 @@ import importantItemsRoutes from './routes/importantItems.js';
 import eventsRoutes from './routes/events.js';
 import sharingRoutes from './routes/sharing.js';
 import adminRoutes from './routes/admin.js';
+import familyRoutes from './routes/family.js';
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use('/api/v1/important-items', importantItemsRoutes);
 app.use('/api/v1/events', eventsRoutes);
 app.use('/api/v1/share', sharingRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/family', familyRoutes);
 
 app.use(errorHandler);
 

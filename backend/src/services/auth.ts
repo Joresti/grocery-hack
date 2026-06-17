@@ -52,6 +52,7 @@ export function userToSnakeCase(user: User): Record<string, unknown> {
     household_names: user.householdNames,
     taste_profile: user.tasteProfile,
     subscription_active: user.subscriptionActive,
+    account_holder_id: user.accountHolderId,
     created_at: user.createdAt,
     updated_at: user.updatedAt,
   };

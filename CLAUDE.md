@@ -7,8 +7,8 @@ GroceryHack is a deal-first meal planning app. It scrapes grocery store flyers, 
 ## Tech Stack
 
 - **Language:** TypeScript everywhere (strict mode, no exceptions)
-- **Frontend:** Ionic React + Capacitor (web, iOS, Android from one codebase)
-- **Backend API:** Node.js with Express or Fastify
+- **Frontend:** React + Vite SPA — `react-router-dom` routing, TanStack Query for server state, inline styles against `frontend/src/theme/tokens.ts`. Capacitor packages the web build for iOS/Android. (Ionic React + Capacitor are dependencies for native packaging, but the current app shell uses plain React Router, not Ionic components or routing.)
+- **Backend API:** Node.js with Express
 - **Background Pipelines:** Node.js with node-cron (flyer scraping, plan generation)
 - **Database:** PostgreSQL 15+
 - **AI:** Anthropic Claude API (Haiku for scraping, Sonnet for plan generation) via @anthropic-ai/sdk
@@ -233,25 +233,38 @@ See `docs/design/style-guide.md` for the full specification. Summary below.
 
 ## Build Commands
 
+**Local URLs & ports:** backend API on `http://localhost:3000`, frontend on
+`http://localhost:5173` (Vite; the Playwright e2e harness overrides to `:5176`).
+Vite proxies `/api` → `http://localhost:3000` (`frontend/vite.config.ts`), so the
+frontend always calls the API at the relative base path `/api/v1`.
+
 ```bash
 # Install dependencies
-npm install                     # Root workspace
+npm install                     # Root workspace (npm workspaces)
 cd backend && npm install
 cd frontend && npm install
 
 # Development
-cd backend && npm run dev       # API server with hot reload
-cd frontend && npm run dev      # Ionic dev server
+npm run dev                     # Root: runs backend + frontend together (concurrently)
+cd backend && npm run dev       # API server only — :3000, tsx watch / hot reload
+cd frontend && npm run dev      # Vite dev server only — :5173
 
 # Database
-psql -f schema.sql              # Initialize schema
+psql -f schema.sql              # Initialize schema from scratch
+cd backend && npm run migrate         # Apply numbered migrations in src/db/migrations/
+cd backend && npm run migrate:status  # Show applied / pending migrations
+cd backend && npm run seed            # Seed test users (password: testpassword123)
+cd backend && npm run seed:plans      # Generate current-week weekly_plans for seeded users
+# schema.sql is the source of truth and must be hand-updated to mirror every new
+# migration added under backend/src/db/migrations/.
 
 # Tests
 cd backend && npm test
 cd frontend && npm test
+npx playwright test             # End-to-end (Playwright, baseURL :5176; see e2e/)
 
 # Build
-cd frontend && npm run build    # Web build
+cd frontend && npm run build    # Web build (tsc && vite build)
 npx cap sync                    # Sync to iOS/Android
 ```
 

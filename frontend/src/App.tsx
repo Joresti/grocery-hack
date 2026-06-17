@@ -5,6 +5,7 @@ import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import SharedPlanPage from './pages/SharedPlanPage';
+import FamilyPlanPage from './pages/FamilyPlanPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +26,7 @@ export default function App(): React.ReactElement {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/plans/:token" element={<SharedPlanPage />} />
+            <Route path="/family" element={<FamilyPlanPage />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>

@@ -28,12 +28,14 @@ CREATE TABLE users (
     stripe_customer_id      TEXT,
     subscription_active     BOOLEAN NOT NULL DEFAULT false,
     push_token              TEXT,
+    account_holder_id       UUID REFERENCES users(id) ON DELETE CASCADE,  -- NULL = account holder; set = family member
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_users_email ON users (email);
 CREATE INDEX idx_users_postal_code ON users (postal_code);
+CREATE INDEX idx_users_account_holder_id ON users (account_holder_id) WHERE account_holder_id IS NOT NULL;
 
 
 -- ============================================================

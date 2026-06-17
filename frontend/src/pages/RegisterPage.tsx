@@ -134,7 +134,7 @@ export default function RegisterPage(): React.ReactElement {
         password,
         postal_code: postalCode,
       };
-      if (displayName.trim()) body['display_name'] = displayName.trim();
+      body['display_name'] = displayName.trim();
       if (budget) body['budget'] = parseFloat(budget);
 
       const data = await api.post<AuthResponse>('/auth/register', body);
@@ -169,6 +169,7 @@ export default function RegisterPage(): React.ReactElement {
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Your name"
             autoComplete="name"
+            required
           />
         </div>
 

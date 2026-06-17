@@ -343,14 +343,16 @@ export function buildTwoStorePlan(
     }
   }
 
-  // Count items per brand
-  const brandItemCounts = new Map<string, number>();
+  // Score each brand by the total savings (regularCost - cost) it provides on its winning items.
+  // A brand that wins a few items with deep discounts beats a brand that wins many items with thin ones.
+  const brandSavings = new Map<string, number>();
   for (const [, assignment] of bestBrandPerKeyword) {
-    brandItemCounts.set(assignment.brandId, (brandItemCounts.get(assignment.brandId) ?? 0) + 1);
+    const savings = assignment.regularCost - assignment.cost;
+    brandSavings.set(assignment.brandId, (brandSavings.get(assignment.brandId) ?? 0) + savings);
   }
 
-  // Get top 2 brands by item count
-  const sortedBrands = [...brandItemCounts.entries()].sort((a, b) => b[1] - a[1]);
+  // Top 2 brands by total savings contributed
+  const sortedBrands = [...brandSavings.entries()].sort((a, b) => b[1] - a[1]);
   const topBrandIds = sortedBrands.slice(0, 2).map(([id]) => id);
 
   if (topBrandIds.length < 2) return null; // Not enough brands for two-store
