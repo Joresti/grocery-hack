@@ -5,7 +5,7 @@ export const registerSchema = z.object({
   email: email,
   password: z.string().min(8, 'Password must be at least 8 characters'),
   postal_code: postalCode,
-  display_name: z.string().optional(),
+  display_name: z.string().min(1, 'Name is required'),
   budget: z.number().positive().optional(),
   dietary_restrictions: z.array(z.string()).optional(),
   max_stores: maxStores.optional(),

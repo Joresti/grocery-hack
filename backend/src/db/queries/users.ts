@@ -21,6 +21,7 @@ function mapUserRow(row: Record<string, unknown>): User {
     householdNames: (row.household_names as string[]) ?? [],
     tasteProfile: (row.taste_profile as Record<string, number>) ?? {},
     subscriptionActive: (row.subscription_active as boolean) ?? false,
+    accountHolderId: (row.account_holder_id as string | null) ?? null,
     createdAt: (row.created_at as Date).toISOString(),
     updatedAt: (row.updated_at as Date).toISOString(),
   };
@@ -58,7 +59,7 @@ export async function findUserById(id: string): Promise<User | null> {
     `SELECT id, email, display_name, postal_code, lat, lng, budget,
             dietary_restrictions, max_stores, household_size,
             household_members, household_names, taste_profile,
-            subscription_active, created_at, updated_at
+            subscription_active, account_holder_id, created_at, updated_at
      FROM users WHERE id = $1`,
     [id],
   );
@@ -90,7 +91,7 @@ export async function createUser(data: CreateUserData): Promise<User> {
      RETURNING id, email, display_name, postal_code, lat, lng, budget,
                dietary_restrictions, max_stores, household_size,
                household_members, household_names, taste_profile,
-               subscription_active, created_at, updated_at`,
+               subscription_active, account_holder_id, created_at, updated_at`,
     [
       data.email,
       data.passwordHash,
@@ -174,7 +175,7 @@ export async function updateUser(id: string, data: UpdateUserData): Promise<User
      RETURNING id, email, display_name, postal_code, lat, lng, budget,
                dietary_restrictions, max_stores, household_size,
                household_members, household_names, taste_profile,
-               subscription_active, created_at, updated_at`,
+               subscription_active, account_holder_id, created_at, updated_at`,
     values,
   );
   const row = rows[0] as Record<string, unknown> | undefined;

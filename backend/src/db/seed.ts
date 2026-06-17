@@ -669,6 +669,32 @@ const users: UserDef[] = [
 ];
 
 // ============================================================
+// Family members (inserted after regular users due to FK dependency)
+// ============================================================
+
+interface FamilyMemberDef {
+  displayName: string;
+  email: string;
+  postalCode: string;
+  budget: number;
+  maxStores: number;
+  householdSize: number;
+  accountHolderEmail: string;
+}
+
+const familyMembers: FamilyMemberDef[] = [
+  {
+    displayName: 'Sam M',
+    email: 'sam@test.groceryhack.com',
+    postalCode: 'L8P 1A1',
+    budget: 100,
+    maxStores: 1,
+    householdSize: 4,
+    accountHolderEmail: 'jessica@test.groceryhack.com',
+  },
+];
+
+// ============================================================
 // Swipe preferences: { userEmail, mealName, liked }
 // ============================================================
 
@@ -930,6 +956,32 @@ async function seed(): Promise<void> {
     console.log(`  ${users.length} users inserted.`);
 
     // ----------------------------------------------------------
+    // 5b. Family members
+    // ----------------------------------------------------------
+    console.log('Inserting family members...');
+    for (const member of familyMembers) {
+      await client.query(
+        `INSERT INTO users (
+           id, email, password_hash, display_name, postal_code, budget,
+           dietary_restrictions, max_stores, household_size, account_holder_id
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          makeUuid(`user:${member.email}`),
+          member.email,
+          passwordHash,
+          member.displayName,
+          member.postalCode,
+          member.budget,
+          [],
+          member.maxStores,
+          member.householdSize,
+          makeUuid(`user:${member.accountHolderEmail}`),
+        ],
+      );
+    }
+    console.log(`  ${familyMembers.length} family members inserted.`);
+
+    // ----------------------------------------------------------
     // 6. User meal preferences (swipe data)
     // ----------------------------------------------------------
     console.log('Inserting user meal preferences...');
@@ -980,13 +1032,17 @@ async function seed(): Promise<void> {
     console.log(`  Deals:             ${deals.length}`);
     console.log(`  Meals:             ${mealDefs.length}`);
     console.log(`  Users:             ${users.length}`);
+    console.log(`  Family members:    ${familyMembers.length}`);
     console.log(`  Swipe preferences: ${swipes.length}`);
     console.log(`  Important items:   ${importantItems.length}`);
     console.log(`  Deal validity:     ${validFrom} to ${validTo}`);
     console.log('========================================');
-    console.log('Test accounts (no password yet — auth migration pending):');
+    console.log('Test accounts (password: testpassword123):');
     for (const user of users) {
       console.log(`  ${user.email} — ${user.displayName}`);
+    }
+    for (const member of familyMembers) {
+      console.log(`  ${member.email} — ${member.displayName} [family member of ${member.accountHolderEmail}]`);
     }
     console.log('========================================\n');
   } catch (error) {
