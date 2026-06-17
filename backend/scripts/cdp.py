@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Chrome DevTools Protocol helper for WSL → Windows Chrome on port 9222.
+"""Chrome DevTools Protocol helper for the local Chrome on port 9222.
+
+Auto-launches Chrome with --remote-debugging-port=9222 if no instance is
+already listening; reuses the existing one otherwise.
 
 Subcommands:
   goto <url> [screenshot_path]   Navigate to URL, wait for load, optionally screenshot
@@ -14,15 +17,72 @@ Subcommands:
   print_pdf <output_path>        Capture current page as PDF (bypasses native Print dialog)
 """
 
-import sys, json, asyncio, base64, urllib.request
+import sys, json, asyncio, base64, urllib.request, urllib.error, os, shutil, subprocess, time
 
 try:
     import websockets
 except ImportError:
     sys.exit("Missing dependency: pip install websockets")
 
-CDP_URL = "http://127.0.0.1:9222/json"
+CDP_PORT = 9222
+CDP_URL = f"http://127.0.0.1:{CDP_PORT}/json"
+CDP_VERSION_URL = f"http://127.0.0.1:{CDP_PORT}/json/version"
+USER_DATA_DIR = "/tmp/chrome-debug-profile"
+CHROME_LOG = "/tmp/chrome-debug.log"
 MAX_MSG = 50 * 1024 * 1024  # 50 MB for screenshot payloads
+
+
+def _cdp_alive(timeout=0.5):
+    try:
+        urllib.request.urlopen(CDP_VERSION_URL, timeout=timeout).read()
+        return True
+    except (urllib.error.URLError, OSError):
+        return False
+
+
+def ensure_chrome():
+    """Reuse a Chrome already listening on 9222, otherwise launch one detached."""
+    if _cdp_alive():
+        return
+
+    chrome_bin = (
+        shutil.which("google-chrome")
+        or shutil.which("google-chrome-stable")
+        or shutil.which("chromium")
+        or shutil.which("chromium-browser")
+    )
+    if not chrome_bin:
+        sys.exit(
+            "Chrome not found. Install google-chrome or chromium, "
+            "or start one manually on port 9222."
+        )
+
+    log = open(CHROME_LOG, "ab", buffering=0)
+    subprocess.Popen(
+        [
+            chrome_bin,
+            f"--remote-debugging-port={CDP_PORT}",
+            f"--user-data-dir={USER_DATA_DIR}",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "about:blank",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=log,
+        stderr=log,
+        start_new_session=True,  # detach from this process group
+        close_fds=True,
+    )
+
+    # Poll until CDP is up (max ~10s).
+    for _ in range(50):
+        if _cdp_alive():
+            return
+        time.sleep(0.2)
+    sys.exit(
+        f"Chrome launched but CDP never came up on port {CDP_PORT}. "
+        f"See {CHROME_LOG} for details."
+    )
 
 
 async def connect():
@@ -178,6 +238,8 @@ def main():
     if not args:
         print(__doc__)
         sys.exit(1)
+
+    ensure_chrome()
 
     cmd = args[0]
 

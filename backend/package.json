@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "seed": "tsx src/db/seed.ts",
+    "seed:plans": "tsx src/db/seedPlans.ts",
     "seed:reset": "psql -f ../schema.sql && tsx src/db/seed.ts",
     "migrate": "tsx src/db/migrate.ts",
     "migrate:status": "tsx src/db/migrateStatus.ts"

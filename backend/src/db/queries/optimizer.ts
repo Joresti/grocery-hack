@@ -198,6 +198,12 @@ export async function saveWeeklyPlan(
        one_store_optimized, two_store_optimized,
        watchlist_alerts, recipe_alerts
      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (user_id, week_of) DO UPDATE SET
+       one_store_optimized = EXCLUDED.one_store_optimized,
+       two_store_optimized = EXCLUDED.two_store_optimized,
+       watchlist_alerts    = EXCLUDED.watchlist_alerts,
+       recipe_alerts       = EXCLUDED.recipe_alerts,
+       created_at          = now()
      RETURNING *`,
     [
       userId,

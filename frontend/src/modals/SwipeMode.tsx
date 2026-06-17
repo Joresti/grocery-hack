@@ -9,7 +9,8 @@ import {
 import { colors, fonts, fontWeights, radii, shadows } from '../theme/tokens';
 import { CloseIcon } from '../theme/icons/CloseIcon';
 import { InitialsAvatar } from '../components/shared';
-import { getMealHeaderGradient, getEmojiForMeal } from '../utils/mealCardHeader';
+import { getMealHeaderGradient } from '../utils/mealCardHeader';
+import { getMealIcon } from '../utils/mealCardIcons';
 import { useSwipe } from '../hooks/useSwipe';
 import { useTrack } from '../hooks/useTrack';
 import type { SwipeableMeal } from '@groceryhack/shared/types';
@@ -286,9 +287,12 @@ function SwipeCard({
             background: getMealHeaderGradient(meal.name),
           }}
         >
-          <span style={styles.headerEmoji}>
-            {getEmojiForMeal(meal.name, meal.filterTags)}
-          </span>
+          <div style={styles.headerIcon}>
+            {(() => {
+              const Icon = getMealIcon(meal.name, meal.filterTags);
+              return <Icon size={120} color="#FFFFFF" />;
+            })()}
+          </div>
         </div>
       )}
 
@@ -409,10 +413,10 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: `${radii.card} ${radii.card} 0 0`,
     position: 'relative',
   },
-  headerEmoji: {
-    fontSize: '64px',
-    lineHeight: 1,
-    filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.15))',
+  headerIcon: {
+    color: '#FFFFFF',
+    filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.18))',
+    opacity: 0.95,
   },
   cardContent: {
     flex: 1,

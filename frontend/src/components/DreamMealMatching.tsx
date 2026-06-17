@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { InitialsAvatar } from './shared';
 import { colors, fonts, fontWeights, radii, shadows, spacing } from '../theme/tokens';
-import { getMealHeaderGradient, getEmojiForMeal } from '../utils/mealCardHeader';
+import { getMealHeaderGradient } from '../utils/mealCardHeader';
+import { getMealIcon } from '../utils/mealCardIcons';
 import type { SwipeableMeal, Meal } from '@groceryhack/shared/types';
 
 interface DreamMealMatchingProps {
@@ -126,10 +127,10 @@ const headerAreaStyle: React.CSSProperties = {
   borderRadius: `${radii.card} ${radii.card} 0 0`,
 };
 
-const headerEmojiStyle: React.CSSProperties = {
-  fontSize: '48px',
-  lineHeight: 1,
-  filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.15))',
+const headerIconStyle: React.CSSProperties = {
+  color: '#FFFFFF',
+  filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.18))',
+  opacity: 0.95,
 };
 
 const cardBodyStyle: React.CSSProperties = {
@@ -308,9 +309,12 @@ export function DreamMealMatching({
                       background: getMealHeaderGradient(currentMeal.name),
                     }}
                   >
-                    <span style={headerEmojiStyle}>
-                      {getEmojiForMeal(currentMeal.name, currentMeal.filterTags)}
-                    </span>
+                    <div style={headerIconStyle}>
+                      {(() => {
+                        const Icon = getMealIcon(currentMeal.name, currentMeal.filterTags);
+                        return <Icon size={96} color="#FFFFFF" />;
+                      })()}
+                    </div>
                   </div>
                 )}
 
