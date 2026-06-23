@@ -44,6 +44,8 @@ tags:
     description: Analytics event tracking (trial)
   - name: Admin
     description: Admin-only endpoints for trial metrics
+  - name: Family
+    description: Family-member view of the holder's plan and meal suggestions
 
 # ────────────────────────────────────────────────────────────
 # PATHS
@@ -1389,6 +1391,100 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  # ══════════════════════════════════════
+  # FAMILY
+  # ══════════════════════════════════════
+
+  /family/plan:
+    get:
+      tags: [Family]
+      summary: Get the account holder's current-week plan for the authenticated family member
+      description: |
+        Returns the linked account holder's current-week plan (read-only) plus the
+        caller's own pending suggestions for it, so the UI can render "Suggestion
+        pending" markers without a second request.
+      responses:
+        '200':
+          description: The holder's plan and the caller's pending suggestions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyPlanResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: NOT_A_FAMILY_MEMBER — caller isn't linked to an account holder
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: NO_PLAN — the holder has no current-week plan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /family/plan/suggestions:
+    post:
+      tags: [Family]
+      summary: Suggest replacing a meal in the holder's plan
+      description: |
+        A family member proposes replacing a meal in the holder's current-week plan
+        with another meal from the shared pool. Stored as `pending`; the plan is not
+        mutated (the holder reviews / accepts / dismisses in later slices). At most one
+        pending suggestion per meal per family member — a second submission for the same
+        target meal returns 409 DUPLICATE_SUGGESTION.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_meal_id, replacement_meal_id]
+              properties:
+                target_meal_id:
+                  type: string
+                  format: uuid
+                  description: A PlanMeal.mealId from the holder's current plan
+                replacement_meal_id:
+                  type: string
+                  format: uuid
+                  description: A meal from the shared pool
+      responses:
+        '201':
+          description: Suggestion recorded (pending)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MealSuggestion'
+        '400':
+          description: MEAL_NOT_IN_PLAN (target not in plan) or INVALID_MEAL (replacement doesn't exist)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: NOT_A_FAMILY_MEMBER — caller isn't linked to an account holder
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: NO_PLAN — the holder has no current-week plan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: DUPLICATE_SUGGESTION — a pending suggestion from this member already exists for the meal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
 
 # ────────────────────────────────────────────────────────────
 # COMPONENTS
@@ -2413,6 +2509,60 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TrialUserMetrics'
+
+    MealSuggestion:
+      type: object
+      description: A family member's proposed meal replacement (snake_case wire shape).
+      properties:
+        id:
+          type: string
+          format: uuid
+        suggester_id:
+          type: string
+          format: uuid
+        account_holder_id:
+          type: string
+          format: uuid
+        weekly_plan_id:
+          type: string
+          format: uuid
+        target_meal_id:
+          type: string
+          format: uuid
+          description: A PlanMeal.mealId from the holder's plan (no FK to meals)
+        replacement_meal_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, accepted, dismissed]
+        created_at:
+          type: string
+          format: date-time
+        replacement_meal_name:
+          type: string
+          description: Denormalised name of the replacement meal
+        target_meal_name:
+          type: string
+          nullable: true
+          description: Denormalised name of the target meal; null if it's no longer in the meals pool
+
+    FamilyPlanResponse:
+      type: object
+      description: The holder's current-week plan plus the caller's own pending suggestions for it.
+      properties:
+        holder_display_name:
+          type: string
+          nullable: true
+        holder_savings_this_week:
+          type: number
+        plan:
+          $ref: '#/components/schemas/WeeklyPlan'
+        pending_suggestions:
+          type: array
+          description: The caller's pending suggestions for this plan (for "Suggestion pending" markers)
+          items:
+            $ref: '#/components/schemas/MealSuggestion'
 
 # ────────────────────────────────────────────────────────────
 # DEFAULT SECURITY

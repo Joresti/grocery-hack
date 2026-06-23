@@ -8,3 +8,5 @@ export { dealsQuery } from './deals.js';
 export type { DealsQuery } from './deals.js';
 export { mealsQuery, mealIdParam, swipeSchema } from './meals.js';
 export type { MealsQuery, MealIdParam, SwipeInput } from './meals.js';
+export { suggestMealBody } from './family.js';
+export type { SuggestMealInput } from './family.js';

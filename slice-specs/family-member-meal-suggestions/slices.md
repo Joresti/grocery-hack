@@ -63,15 +63,15 @@ is JSONB names/ages, not logins (confirmed by grep across `backend/src`,
    swapped meal's items.
 
 **Sources of truth to extend as slices land:** `packages/shared/types.ts` (new types
-first), `schema.sql` + a numbered migration (next is `006`), and `api-contract.yaml`
-(new endpoints).
+first), `schema.sql` + a numbered migration (`006` link and `007` suggestions landed;
+next is `008`), and `api-contract.yaml` (new endpoints).
 
 ## Slices
 | # | Title | Status | Delivers (one line) |
 |---|-------|--------|---------------------|
-| 1 | Walking skeleton — family member sees the holder's plan | Planned | A linked family member logs in, opens `/family`, and sees the account holder's current-week plan meals, read-only, labelled as a family-member view. |
-| 2 | Family member suggests a meal replacement | Planned | "Suggest a swap" on a meal → pick a replacement → it's stored pending and the meal shows "Suggestion pending"; the plan is unchanged. |
-| 3 | One pending suggestion per meal + view existing | Planned | A meal that already has a pending suggestion from me blocks a second submission and shows my existing pending suggestion instead. |
+| 1 | Walking skeleton — family member sees the holder's plan | Done | A linked family member logs in, opens `/family`, and sees the account holder's current-week plan meals, read-only, labelled as a family-member view. |
+| 2 | Family member suggests a meal replacement | In progress | "Suggest a swap" on a meal → pick a replacement → it's stored pending and the meal shows "Suggestion pending"; the plan is unchanged. |
+| 3 | One pending suggestion per meal + view existing | Done | A meal that already has a pending suggestion from me blocks a second submission and shows my existing pending suggestion instead. |
 | 4 | Account holder reviews pending suggestions | Planned | The account holder opens a Suggestions panel and sees each pending suggestion: the meal it would replace, the replacement, and who suggested it. |
 | 5 | Account holder accepts a suggestion → plan updated | Planned | Accepting swaps the target meal for the replacement, re-matches the new meal's ingredients to deals at the plan's selected stores (shown on the list), recomputes costs/savings, and marks the suggestion accepted. |
 | 6 | Account holder dismisses a suggestion | Planned | Dismissing a pending suggestion marks it dismissed and leaves the plan unchanged. |

@@ -363,6 +363,36 @@ CREATE INDEX idx_events_session ON events (session_id, created_at);
 
 
 -- ============================================================
+-- 15. MEAL SUGGESTIONS (family member → account holder)
+-- ============================================================
+-- A family member proposes replacing a meal in the account holder's current-week
+-- plan with another meal from the shared pool. target_meal_id is a PlanMeal.mealId
+-- from the holder's plan JSONB (no FK to meals); replacement_meal_id is a real meal.
+CREATE TABLE meal_suggestions (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    suggester_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    account_holder_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    weekly_plan_id      UUID NOT NULL REFERENCES weekly_plans(id) ON DELETE CASCADE,
+    target_meal_id      UUID NOT NULL,           -- PlanMeal.mealId (meal from the holder's plan)
+    replacement_meal_id UUID NOT NULL REFERENCES meals(id) ON DELETE CASCADE,
+    status              TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending', 'accepted', 'dismissed')),
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_meal_suggestions_suggester ON meal_suggestions (suggester_id);
+CREATE INDEX idx_meal_suggestions_holder    ON meal_suggestions (account_holder_id);
+CREATE INDEX idx_meal_suggestions_plan      ON meal_suggestions (weekly_plan_id);
+
+-- One *pending* suggestion per (family member, plan, target meal). Partial on
+-- status = 'pending' so accepted/dismissed rows don't block a re-suggestion.
+-- Mirrors migration 008_unique_pending_suggestion.sql.
+CREATE UNIQUE INDEX idx_meal_suggestions_one_pending_per_meal
+    ON meal_suggestions (suggester_id, weekly_plan_id, target_meal_id)
+    WHERE status = 'pending';
+
+
+-- ============================================================
 -- HELPER FUNCTIONS
 -- ============================================================
 

@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useFamilyPlan } from '../hooks/useFamilyPlan';
 import { StoreMealDealList } from '../components/StoreMealDealList';
+import { SuggestSwapModal } from '../modals/SuggestSwapModal';
+import { PendingSuggestionModal } from '../modals/PendingSuggestionModal';
 import { LoadingSpinner } from '../components/shared/LoadingSpinner';
+import { Toast } from '../components/shared';
 import { ApiError } from '../services/api';
 import { colors, fonts, fontWeights, radii, spacing } from '../theme/tokens';
+import type { PlanMeal, MealSuggestion } from '@groceryhack/shared/types';
 
 // ────────────────────────────────────────────────────────────
 // Styles
@@ -133,6 +137,21 @@ export default function FamilyPlanPage(): React.ReactElement {
   const navigate = useNavigate();
   const { data, isLoading, error } = useFamilyPlan();
   const [storeLimit, setStoreLimit] = useState<1 | 2>(1);
+  const [suggestingFor, setSuggestingFor] = useState<PlanMeal | null>(null);
+  const [viewingSuggestion, setViewingSuggestion] = useState<MealSuggestion | null>(null);
+  const [successVisible, setSuccessVisible] = useState(false);
+
+  // mealIds in the holder's plan that already have a pending suggestion from me.
+  const pendingSuggestionMealIds = useMemo(
+    () => new Set((data?.pendingSuggestions ?? []).map((s) => s.targetMealId)),
+    [data],
+  );
+
+  // targetMealId → my pending suggestion, so tapping a "pending" marker can reveal it.
+  const suggestionByMealId = useMemo(
+    () => new Map((data?.pendingSuggestions ?? []).map((s) => [s.targetMealId, s])),
+    [data],
+  );
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -185,8 +204,41 @@ export default function FamilyPlanPage(): React.ReactElement {
           plan={data.plan}
           onStoreLimitChange={setStoreLimit}
           storeLimit={storeLimit}
+          onSuggestSwap={(meal) => setSuggestingFor(meal)}
+          pendingSuggestionMealIds={pendingSuggestionMealIds}
+          onViewPendingSuggestion={(meal) =>
+            setViewingSuggestion(suggestionByMealId.get(meal.mealId) ?? null)
+          }
         />
       </div>
+
+      {suggestingFor && (
+        <SuggestSwapModal
+          isOpen={true}
+          targetMeal={suggestingFor}
+          onClose={() => setSuggestingFor(null)}
+          onSubmitted={() => {
+            setSuggestingFor(null);
+            setSuccessVisible(true);
+          }}
+        />
+      )}
+
+      {viewingSuggestion && (
+        <PendingSuggestionModal
+          isOpen={true}
+          suggestion={viewingSuggestion}
+          holderName={holderName}
+          onClose={() => setViewingSuggestion(null)}
+        />
+      )}
+
+      <Toast
+        message="Suggestion sent!"
+        type="success"
+        visible={successVisible}
+        onDismiss={() => setSuccessVisible(false)}
+      />
     </div>
   );
 }

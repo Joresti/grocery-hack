@@ -128,6 +128,18 @@ These can be returned by any endpoint.
 
 ---
 
+## Family (`/family/*`)
+
+| Code | HTTP | Endpoint | Message | When |
+|------|------|----------|---------|------|
+| `NOT_A_FAMILY_MEMBER` | 403 | GET /family/plan, POST /family/plan/suggestions | "You're not linked to an account holder." | Caller's `account_holder_id` is null (not a family member). |
+| `NO_PLAN` | 404 | GET /family/plan, POST /family/plan/suggestions | "The account holder doesn't have a plan for this week yet." | The linked holder has no current-week `weekly_plans` row. |
+| `MEAL_NOT_IN_PLAN` | 400 | POST /family/plan/suggestions | "That meal isn't in the current plan." | `target_meal_id` is not a `PlanMeal.mealId` in the holder's current plan JSONB. |
+| `INVALID_MEAL` | 400 | POST /family/plan/suggestions | "That replacement meal doesn't exist." | `replacement_meal_id` references a nonexistent meal. |
+| `DUPLICATE_SUGGESTION` | 409 | POST /family/plan/suggestions | "You already have a pending suggestion for this meal." | A pending suggestion from this family member already exists for the target meal (one pending suggestion per meal per family member). |
+
+---
+
 ## Flyer Requests (`/flyer-requests/*`)
 
 | Code | HTTP | Endpoint | Message | When |

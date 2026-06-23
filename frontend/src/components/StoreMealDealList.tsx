@@ -4,7 +4,7 @@ import { DiscountBadge } from './shared';
 import { MapPinIcon } from '../theme/icons/MapPinIcon';
 import { CheckIcon } from '../theme/icons/CheckIcon';
 import { colors, fonts, fontWeights, radii, shadows, spacing } from '../theme/tokens';
-import type { WeeklyPlan, GroceryPlan, PlanStop, PlanShoppingItem } from '@groceryhack/shared/types';
+import type { WeeklyPlan, GroceryPlan, PlanStop, PlanShoppingItem, PlanMeal } from '@groceryhack/shared/types';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -14,6 +14,12 @@ interface StoreMealDealListProps {
   plan: WeeklyPlan;
   onStoreLimitChange: (stores: 1 | 2) => void;
   storeLimit: 1 | 2;
+  /** When provided, each meal shows a "Suggest a swap" affordance (family-member view). */
+  onSuggestSwap?: (meal: PlanMeal) => void;
+  /** Set of PlanMeal.mealId values that already have a pending suggestion from the viewer. */
+  pendingSuggestionMealIds?: Set<string>;
+  /** When provided, tapping a "Suggestion pending" marker reveals the existing suggestion. */
+  onViewPendingSuggestion?: (meal: PlanMeal) => void;
 }
 
 type ViewMode = 'byMeal' | 'viewAll';
@@ -177,6 +183,91 @@ const mealCostStyle: React.CSSProperties = {
   fontWeight: fontWeights.semibold,
   fontSize: '0.9rem',
   color: colors.primary,
+};
+
+// ── Suggest-a-swap affordances (family-member view) ──
+
+const mealRightStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '14px',
+};
+
+const suggestSwapButtonStyle: React.CSSProperties = {
+  fontFamily: fonts.body,
+  fontWeight: fontWeights.semibold,
+  fontSize: '0.8rem',
+  padding: '8px 14px',
+  borderRadius: radii.pill,
+  border: `1.5px solid ${colors.border}`,
+  backgroundColor: colors.white,
+  color: colors.primary,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  minHeight: spacing.touchTargetMin,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  transition: 'all 0.2s ease',
+  flexShrink: 0,
+};
+
+const pillPendingStyle: React.CSSProperties = {
+  fontFamily: fonts.body,
+  fontWeight: fontWeights.medium,
+  fontSize: '0.72rem',
+  backgroundColor: '#FBEEDB',
+  color: '#9A6A12',
+  padding: '5px 11px',
+  borderRadius: radii.pill,
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
+};
+
+// Same amber pill, rendered as a button so it can reveal the existing suggestion.
+const pillPendingButtonStyle: React.CSSProperties = {
+  ...pillPendingStyle,
+  border: 'none',
+  cursor: 'pointer',
+};
+
+const mealActionStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '14px',
+  backgroundColor: colors.white,
+  border: `1px solid ${colors.border}`,
+  borderRadius: '14px',
+  padding: '14px 18px',
+  marginBottom: '16px',
+};
+
+const maLabelStyle: React.CSSProperties = {
+  fontFamily: fonts.body,
+  fontSize: '0.7rem',
+  fontWeight: fontWeights.bold,
+  letterSpacing: '0.1em',
+  color: colors.textMuted,
+  textTransform: 'uppercase' as const,
+};
+
+const maNameStyle: React.CSSProperties = {
+  fontFamily: fonts.heading,
+  fontWeight: fontWeights.bold,
+  fontSize: '1.05rem',
+  color: colors.text,
+  marginTop: '3px',
+};
+
+const dotPendingStyle: React.CSSProperties = {
+  display: 'inline-block',
+  width: '7px',
+  height: '7px',
+  borderRadius: '50%',
+  backgroundColor: '#CF9A2E',
+  marginLeft: '7px',
+  flexShrink: 0,
 };
 
 const shoppingTitleStyle: React.CSSProperties = {
@@ -448,11 +539,17 @@ function StoreSection({
   viewMode,
   selectedMealName,
   planToken,
+  onSuggestSwap,
+  pendingSuggestionMealIds,
+  onViewPendingSuggestion,
 }: {
   stop: PlanStop;
   viewMode: ViewMode;
   selectedMealName: string;
   planToken: string;
+  onSuggestSwap?: (meal: PlanMeal) => void;
+  pendingSuggestionMealIds?: Set<string>;
+  onViewPendingSuggestion?: (meal: PlanMeal) => void;
 }): React.ReactElement {
   const storageKey = `gh-checked-${planToken}-${stop.storeLocationId}`;
 
@@ -517,21 +614,46 @@ function StoreSection({
       {viewMode === 'viewAll' && hasMeals && (
         <div style={{ padding: '16px 24px', borderBottom: `1px solid ${colors.border}` }}>
           <p style={mealsSectionTitleStyle}>Meals</p>
-          {stop.meals.map((meal, index) => (
-            <div
-              key={meal.mealId}
-              style={{
-                ...mealRowStyle,
-                borderBottom:
-                  index === stop.meals.length - 1 ? 'none' : mealRowStyle.borderBottom,
-              }}
-            >
-              <span style={mealNameListStyle}>{meal.name}</span>
-              <span style={mealCostStyle}>
-                {formatPrice(meal.costPerServing)}/serving
-              </span>
-            </div>
-          ))}
+          {stop.meals.map((meal, index) => {
+            const hasPending = pendingSuggestionMealIds?.has(meal.mealId) ?? false;
+            return (
+              <div
+                key={meal.mealId}
+                style={{
+                  ...mealRowStyle,
+                  borderBottom:
+                    index === stop.meals.length - 1 ? 'none' : mealRowStyle.borderBottom,
+                }}
+              >
+                <span style={mealNameListStyle}>{meal.name}</span>
+                <div style={mealRightStyle}>
+                  {onSuggestSwap &&
+                    (hasPending ? (
+                      <button
+                        type="button"
+                        style={pillPendingButtonStyle}
+                        onClick={() => onViewPendingSuggestion?.(meal)}
+                        aria-label={`View pending suggestion for ${meal.name}`}
+                      >
+                        Suggestion pending
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        style={suggestSwapButtonStyle}
+                        onClick={() => onSuggestSwap(meal)}
+                        aria-label={`Suggest a swap for ${meal.name}`}
+                      >
+                        Suggest a swap
+                      </button>
+                    ))}
+                  <span style={mealCostStyle}>
+                    {formatPrice(meal.costPerServing)}/serving
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -577,6 +699,9 @@ export function StoreMealDealList({
   plan,
   onStoreLimitChange,
   storeLimit,
+  onSuggestSwap,
+  pendingSuggestionMealIds,
+  onViewPendingSuggestion,
 }: StoreMealDealListProps): React.ReactElement | null {
   const [viewMode, setViewMode] = useState<ViewMode>('byMeal');
 
@@ -601,6 +726,19 @@ export function StoreMealDealList({
     return names;
   }, [activePlan]);
 
+  // Map each unique meal name → its PlanMeal (first occurrence) so the by-meal
+  // affordances (action panel, pending dots) can resolve a name to a mealId.
+  const mealByName = useMemo((): Map<string, PlanMeal> => {
+    const map = new Map<string, PlanMeal>();
+    if (!activePlan) return map;
+    for (const stop of activePlan.stops) {
+      for (const meal of stop.meals) {
+        if (!map.has(meal.name)) map.set(meal.name, meal);
+      }
+    }
+    return map;
+  }, [activePlan]);
+
   const [selectedMealName, setSelectedMealName] = useState<string>('');
 
   // Auto-select first meal when plan changes
@@ -619,6 +757,11 @@ export function StoreMealDealList({
 
   const showToggle = plan.twoStoreOptimized !== null;
   const hasMealsInAnyStop = activePlan.stops.some((s) => s.meals.length > 0);
+
+  const selectedMeal = mealByName.get(selectedMealName) ?? null;
+  const selectedMealHasPending = selectedMeal
+    ? (pendingSuggestionMealIds?.has(selectedMeal.mealId) ?? false)
+    : false;
 
   return (
     <section style={sectionStyle}>
@@ -667,6 +810,10 @@ export function StoreMealDealList({
         <div style={mealTabsRowStyle} role="tablist" aria-label="Meal filter">
           {allMealNames.map((name) => {
             const isActive = name === selectedMealName;
+            const pillMeal = mealByName.get(name);
+            const pillHasPending = pillMeal
+              ? (pendingSuggestionMealIds?.has(pillMeal.mealId) ?? false)
+              : false;
             return (
               <button
                 key={name}
@@ -681,14 +828,55 @@ export function StoreMealDealList({
                 }}
               >
                 {name}
+                {pillHasPending && (
+                  <span style={dotPendingStyle} aria-label="Suggestion pending" />
+                )}
               </button>
             );
           })}
         </div>
       )}
 
+      {/* By-meal action panel — suggest a swap for the selected meal */}
+      {hasMealsInAnyStop && viewMode === 'byMeal' && onSuggestSwap && selectedMeal && (
+        <div style={mealActionStyle}>
+          <div>
+            <div style={maLabelStyle}>Showing ingredients for</div>
+            <div style={maNameStyle}>{selectedMealName}</div>
+          </div>
+          {selectedMealHasPending ? (
+            <button
+              type="button"
+              style={pillPendingButtonStyle}
+              onClick={() => onViewPendingSuggestion?.(selectedMeal)}
+              aria-label={`View pending suggestion for ${selectedMealName}`}
+            >
+              Suggestion pending
+            </button>
+          ) : (
+            <button
+              type="button"
+              style={suggestSwapButtonStyle}
+              onClick={() => onSuggestSwap(selectedMeal)}
+              aria-label={`Suggest a swap for ${selectedMealName}`}
+            >
+              Suggest a swap
+            </button>
+          )}
+        </div>
+      )}
+
       {activePlan.stops.map((stop) => (
-        <StoreSection key={stop.storeLocationId} stop={stop} viewMode={viewMode} selectedMealName={selectedMealName} planToken={plan.token} />
+        <StoreSection
+          key={stop.storeLocationId}
+          stop={stop}
+          viewMode={viewMode}
+          selectedMealName={selectedMealName}
+          planToken={plan.token}
+          onSuggestSwap={onSuggestSwap}
+          pendingSuggestionMealIds={pendingSuggestionMealIds}
+          onViewPendingSuggestion={onViewPendingSuggestion}
+        />
       ))}
 
       {/* Unmatched items — not assigned to any store */}

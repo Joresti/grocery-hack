@@ -20,6 +20,7 @@ export type MealSource = 'meal' | 'user_recipe';
 export type ShareChannel = 'email' | 'sms';
 export type ShareStatus = 'pending' | 'accepted' | 'declined' | 'expired';
 export type ShareAction = 'accept' | 'decline';
+export type MealSuggestionStatus = 'pending' | 'accepted' | 'dismissed';
 export type TrackedService = 'claude' | 'twilio' | 'email' | 'geocode';
 export type UsagePeriod = 'daily' | 'monthly';
 export type MemberAgeBracket = 'under_2' | 'picky_2_5' | 'expanding_6_12' | 'teen_13_plus' | 'adult';
@@ -614,6 +615,11 @@ export interface SharePlanRequest {
   recipientContact: string;
 }
 
+export interface SuggestMealRequest {
+  targetMealId: string;
+  replacementMealId: string;
+}
+
 
 export interface TrackEventPayload {
   eventType: EventType;
@@ -772,10 +778,27 @@ export interface ShareRespondResult {
   calendarUrl: string | null;
 }
 
+export interface MealSuggestion {
+  id: string;
+  suggesterId: string;
+  accountHolderId: string;
+  weeklyPlanId: string;
+  targetMealId: string;
+  replacementMealId: string;
+  status: MealSuggestionStatus;
+  createdAt: string;
+  // Denormalised display fields (joined from meals at query time).
+  replacementMealName: string;
+  targetMealName: string | null;
+}
+
 export interface FamilyPlanResponse {
   holderDisplayName: string | null;
   holderSavingsThisWeek: number;
   plan: WeeklyPlan;
+  // The caller's own pending suggestions for the holder's current plan,
+  // so the UI can render "Suggestion pending" markers without a second request.
+  pendingSuggestions: MealSuggestion[];
 }
 
 export interface ApiError {
