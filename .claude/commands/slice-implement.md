@@ -5,9 +5,19 @@ Your job is to **build it** and then **prove it works in a browser**. The design
 work is finished: the slice and its abstract have been reviewed and approved by the
 developer, so you execute the plan rather than re-deriving or re-debating it.
 
-You run with full implementation permissions — file edits, shell commands, and the
-Claude in Chrome browser tools. This is not a planning or read-only step. Make the
-changes.
+You run with full implementation permissions — file edits, shell commands, and
+browser automation for verification. This is not a planning or read-only step. Make
+the changes.
+
+> **Browser verification runs in WSL.** The "Claude in Chrome" / `chrome-mcp` tools
+> attach to Chrome over the DevTools Protocol, but that attach is unreliable from WSL
+> — do **not** rely on them here (they typically fail with `ECONNREFUSED 127.0.0.1:9222`
+> or never drive the page). Use the repo's CDP bridge instead:
+> `python3 backend/scripts/cdp.py <subcommand>` — it auto-launches or reuses a headless
+> Chrome on `localhost:9222` and exposes `goto <url> [shot]`, `eval <js>`,
+> `click <js> [--wait N]`, `screenshot <path>`, `scroll <y> <path>`. Drive the UI by
+> evaluating JS (`eval`/`click`) and read state back with `eval`; capture `screenshot`s
+> as evidence. This is the same bridge documented in `CLAUDE.md`.
 
 ---
 
@@ -77,15 +87,16 @@ Make sure the project builds/compiles and the existing test suite still passes �
 not break what's already there. Add or update tests where the project's conventions
 expect them for this slice.
 
-### 4. Verify in the browser with Claude in Chrome
+### 4. Verify in the browser (WSL: use the `cdp.py` CDP bridge, not chrome-mcp)
 
 1. Start the app as a background process using the run command from step 1; wait
    until it responds at the base URL.
 2. Put the listed preconditions / seed data in place.
-3. Using Claude in Chrome, execute **every** step in the abstract's Section 7
-   verification plan against the running app: perform each action, then check the
-   expected assertion. Also confirm each `Then` from the slice's covered Gherkin
-   scenarios is demonstrated.
+3. Using the CDP bridge `python3 backend/scripts/cdp.py` (the "Claude in Chrome" /
+   `chrome-mcp` tools do **not** work in WSL — see the note above), execute **every**
+   step in the abstract's Section 7 verification plan against the running app: perform
+   each action, then check the expected assertion. Also confirm each `Then` from the
+   slice's covered Gherkin scenarios is demonstrated.
 4. If the abstract marked a route or selector `ASSUMED` and reality differs, use the
    real one and note the correction.
 5. Record each step as **PASS** or **FAIL** with what you observed.
