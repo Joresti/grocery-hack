@@ -470,6 +470,9 @@ export interface LandingPage {
   currentPlan: WeeklyPlan | null;
   notableDeals: Deal[];
   importantItems: ImportantItem[];
+  // Count of pending meal suggestions addressed to the logged-in holder, so the
+  // landing page can gate the "Suggestions (N)" review entry without a second request.
+  pendingSuggestionCount: number;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -790,6 +793,9 @@ export interface MealSuggestion {
   // Denormalised display fields (joined from meals at query time).
   replacementMealName: string;
   targetMealName: string | null;
+  // Denormalised suggester display name (joined from users at query time).
+  // Populated by the holder-side read; left unset by the family-member queries.
+  suggesterName?: string | null;
 }
 
 export interface FamilyPlanResponse {
@@ -799,6 +805,12 @@ export interface FamilyPlanResponse {
   // The caller's own pending suggestions for the holder's current plan,
   // so the UI can render "Suggestion pending" markers without a second request.
   pendingSuggestions: MealSuggestion[];
+}
+
+export interface HolderSuggestionsResponse {
+  // Every pending suggestion addressed to the authenticated account holder,
+  // each carrying the suggester's display name (suggesterName), newest first.
+  suggestions: MealSuggestion[];
 }
 
 export interface ApiError {

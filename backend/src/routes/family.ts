@@ -3,7 +3,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { suggestMealBody } from '../schemas/family.js';
 import type { SuggestMealInput } from '../schemas/family.js';
-import { getFamilyPlan, suggestMeal } from '../services/family.js';
+import { getFamilyPlan, suggestMeal, getHolderSuggestions } from '../services/family.js';
 
 const router = Router();
 
@@ -11,6 +11,16 @@ const router = Router();
 router.get('/plan', requireAuth, async (req, res, next) => {
   try {
     const data = await getFamilyPlan(req.user!.userId);
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/v1/family/suggestions — pending suggestions addressed to the authenticated account holder
+router.get('/suggestions', requireAuth, async (req, res, next) => {
+  try {
+    const data = await getHolderSuggestions(req.user!.userId);
     res.json(data);
   } catch (err) {
     next(err);

@@ -21,6 +21,7 @@ import { LikedMealsModal } from '../modals/LikedMealsModal';
 import { OptimizerModal } from '../modals/OptimizerModal';
 import { ImportantItemsModal } from '../modals/ImportantItemsModal';
 import { ShareContactModal } from '../modals/ShareContactModal';
+import { ReviewSuggestionsModal } from '../modals/ReviewSuggestionsModal';
 
 const pageStyle: React.CSSProperties = {
   backgroundColor: colors.bg,
@@ -133,6 +134,7 @@ export default function LandingPage(): React.ReactElement {
   const [likedMealsOpen, setLikedMealsOpen] = useState(false);
   const [optimizerOpen, setOptimizerOpen] = useState(false);
   const [importantItemsOpen, setImportantItemsOpen] = useState(false);
+  const [reviewSuggestionsOpen, setReviewSuggestionsOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareContext, setShareContext] = useState<{
     mealId?: string;
@@ -247,6 +249,15 @@ export default function LandingPage(): React.ReactElement {
           >
             My Staples
           </button>
+          {data.pendingSuggestionCount > 0 && (
+            <button
+              type="button"
+              style={importantItemsButtonStyle}
+              onClick={() => setReviewSuggestionsOpen(true)}
+            >
+              Suggestions ({data.pendingSuggestionCount})
+            </button>
+          )}
         </div>
 
         <DealAlertBanner alerts={data.watchlistAlerts} />
@@ -330,6 +341,12 @@ export default function LandingPage(): React.ReactElement {
       <ImportantItemsModal
         isOpen={importantItemsOpen}
         onClose={() => setImportantItemsOpen(false)}
+      />
+
+      <ReviewSuggestionsModal
+        isOpen={reviewSuggestionsOpen}
+        onClose={() => setReviewSuggestionsOpen(false)}
+        holderName={data.user.displayName ?? 'you'}
       />
 
       <ShareContactModal

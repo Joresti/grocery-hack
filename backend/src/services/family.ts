@@ -3,6 +3,7 @@ import {
   createMealSuggestion,
   getMySuggestionsForPlan,
   getPendingSuggestionForMeal,
+  getHolderPendingSuggestions,
 } from '../db/queries/family.js';
 import { getCurrentPlan, getSavingsThisWeek } from '../db/queries/landing.js';
 import { findMealById } from '../db/queries/meals.js';
@@ -29,6 +30,10 @@ export interface FamilyPlanServiceResponse {
   holder_savings_this_week: number;
   plan: Record<string, unknown>;
   pending_suggestions: Record<string, unknown>[];
+}
+
+export interface HolderSuggestionsServiceResponse {
+  suggestions: Record<string, unknown>[];
 }
 
 /**
@@ -79,6 +84,18 @@ export async function getFamilyPlan(userId: string): Promise<FamilyPlanServiceRe
     plan,
     pending_suggestions: pendingSuggestions,
   };
+}
+
+/**
+ * Every pending suggestion addressed to the authenticated account holder. The caller
+ * *is* the holder, so we query by account_holder_id = caller — no family-link lookup.
+ * A family member calling this naturally gets [] (their id is never an
+ * account_holder_id); the explicit 403 for that case is deferred to Slice 8.
+ */
+export async function getHolderSuggestions(
+  holderId: string,
+): Promise<HolderSuggestionsServiceResponse> {
+  return { suggestions: await getHolderPendingSuggestions(holderId) };
 }
 
 /**

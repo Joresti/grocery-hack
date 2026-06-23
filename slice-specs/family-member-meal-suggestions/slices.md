@@ -63,16 +63,18 @@ is JSONB names/ages, not logins (confirmed by grep across `backend/src`,
    swapped meal's items.
 
 **Sources of truth to extend as slices land:** `packages/shared/types.ts` (new types
-first), `schema.sql` + a numbered migration (`006` link and `007` suggestions landed;
-next is `008`), and `api-contract.yaml` (new endpoints).
+first), `schema.sql` + a numbered migration (`006` link, `007` suggestions, and `008`
+partial-unique pending index have all landed; Slice 4 is read-only and adds no migration —
+the next migration is whatever Slice 5's swap needs, if any), and `api-contract.yaml`
+(new endpoints).
 
 ## Slices
 | # | Title | Status | Delivers (one line) |
 |---|-------|--------|---------------------|
 | 1 | Walking skeleton — family member sees the holder's plan | Done | A linked family member logs in, opens `/family`, and sees the account holder's current-week plan meals, read-only, labelled as a family-member view. |
-| 2 | Family member suggests a meal replacement | In progress | "Suggest a swap" on a meal → pick a replacement → it's stored pending and the meal shows "Suggestion pending"; the plan is unchanged. |
+| 2 | Family member suggests a meal replacement | Done | "Suggest a swap" on a meal → pick a replacement → it's stored pending and the meal shows "Suggestion pending"; the plan is unchanged. |
 | 3 | One pending suggestion per meal + view existing | Done | A meal that already has a pending suggestion from me blocks a second submission and shows my existing pending suggestion instead. |
-| 4 | Account holder reviews pending suggestions | Planned | The account holder opens a Suggestions panel and sees each pending suggestion: the meal it would replace, the replacement, and who suggested it. |
+| 4 | Account holder reviews pending suggestions | Done | The account holder opens a Suggestions panel and sees each pending suggestion: the meal it would replace, the replacement, and who suggested it. |
 | 5 | Account holder accepts a suggestion → plan updated | Planned | Accepting swaps the target meal for the replacement, re-matches the new meal's ingredients to deals at the plan's selected stores (shown on the list), recomputes costs/savings, and marks the suggestion accepted. |
 | 6 | Account holder dismisses a suggestion | Planned | Dismissing a pending suggestion marks it dismissed and leaves the plan unchanged. |
 | 7 | Family member tracks suggestion status | Planned | "My Suggestions" shows each suggestion with its status (pending / accepted / dismissed), completing the accepted/dismissed feedback loop. |
@@ -105,8 +107,11 @@ provisioning (invitation / self-signup) is out of scope — the link is seeded._
 
 1. **"Active account."** The Background says the holder has an *active* account. MVP does
    not gate this feature on `subscription_active`; confirm no paywall is intended.
-2. **Account-holder review surface.** Assumed: a Suggestions modal/section on the existing
-   `LandingPage` (per the mockup's account-holder screens), not a new route.
+2. **Account-holder review surface** _(resolved — folded into Slice 4)._ It is a
+   `ReviewSuggestionsModal` on the existing `LandingPage` (no new route), opened from a
+   count-gated "Suggestions (N)" action-bar entry. The badge count rides on the single
+   `/landing` response (`pending_suggestion_count`), preserving the "one endpoint loads the
+   landing page" rule; the modal fetches the full list from `GET /family/suggestions`.
 
 ## Source spec
 `specs/family-member-meal-suggestions/family-member-meal-suggestions.md`

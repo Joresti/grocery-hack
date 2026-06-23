@@ -2,6 +2,7 @@ import * as userQueries from '../db/queries/users.js';
 import * as mealQueries from '../db/queries/meals.js';
 import * as dealQueries from '../db/queries/deals.js';
 import * as landingQueries from '../db/queries/landing.js';
+import { countHolderPendingSuggestions } from '../db/queries/family.js';
 import { userToSnakeCase } from './auth.js';
 const MAX_SWIPEABLE_MEALS = 20;
 const MAX_LIKED_MEALS_PREVIEW = 6;
@@ -23,6 +24,7 @@ export interface LandingPageResponse {
   current_plan: Record<string, unknown> | null;
   notable_deals: Record<string, unknown>[];
   important_items: Record<string, unknown>[];
+  pending_suggestion_count: number;
 }
 
 /**
@@ -41,6 +43,7 @@ export async function getLandingPage(userId: string): Promise<LandingPageRespons
     currentPlan,
     notableDeals,
     importantItems,
+    pendingSuggestionCount,
   ] = await Promise.all([
     userQueries.findUserById(userId),
     landingQueries.getSavingsThisWeek(userId),
@@ -52,6 +55,7 @@ export async function getLandingPage(userId: string): Promise<LandingPageRespons
     landingQueries.getCurrentPlan(userId),
     dealQueries.findNotableDeals(MAX_NOTABLE_DEALS),
     landingQueries.getImportantItems(userId),
+    countHolderPendingSuggestions(userId),
   ]);
 
   if (!user) {
@@ -69,5 +73,6 @@ export async function getLandingPage(userId: string): Promise<LandingPageRespons
     current_plan: currentPlan,
     notable_deals: notableDeals,
     important_items: importantItems,
+    pending_suggestion_count: pendingSuggestionCount,
   };
 }

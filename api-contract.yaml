@@ -1425,6 +1425,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /family/suggestions:
+    get:
+      tags: [Family]
+      summary: Pending suggestions addressed to the authenticated account holder
+      description: |
+        Returns every *pending* meal-swap suggestion submitted by the holder's family
+        members, each carrying the suggester's display name (`suggester_name`), the
+        replacement meal name, and the (best-effort) target meal name. Read-only; the
+        accept/dismiss actions arrive in later slices. A caller who is not an account
+        holder naturally receives an empty list (their id is never an
+        `account_holder_id`).
+      responses:
+        '200':
+          description: The holder's pending suggestions (newest first)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolderSuggestionsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /family/plan/suggestions:
     post:
       tags: [Family]
@@ -1611,6 +1632,9 @@ components:
           description: User's active important items (recurring staples)
           items:
             $ref: '#/components/schemas/ImportantItem'
+        pending_suggestion_count:
+          type: integer
+          description: Count of pending meal suggestions addressed to the logged-in holder, gating the "Suggestions (N)" review entry
 
     Error:
       type: object
@@ -2546,6 +2570,19 @@ components:
           type: string
           nullable: true
           description: Denormalised name of the target meal; null if it's no longer in the meals pool
+        suggester_name:
+          type: string
+          nullable: true
+          description: Denormalised display name of the suggester; populated by the holder-side read, omitted/null by the family-member queries
+
+    HolderSuggestionsResponse:
+      type: object
+      description: Every pending suggestion addressed to the authenticated account holder, newest first.
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/MealSuggestion'
 
     FamilyPlanResponse:
       type: object

@@ -31,6 +31,7 @@ function mapSuggestionRow(row: Record<string, unknown>): Record<string, unknown>
       : (row.created_at as string),
     replacement_meal_name: row.replacement_meal_name as string,
     target_meal_name: (row.target_meal_name as string | null) ?? null,
+    suggester_name: (row.suggester_name as string | null) ?? null,
   };
 }
 
@@ -143,4 +144,50 @@ export async function getPendingSuggestionForMeal(
 
   const row = rows[0] as Record<string, unknown> | undefined;
   return row ? mapSuggestionRow(row) : null;
+}
+
+/**
+ * Get all *pending* suggestions addressed to an account holder, across all family
+ * members. Joins the suggester (su.display_name AS suggester_name), the replacement
+ * meal (rm.name, FK-guaranteed) and the target meal (LEFT JOIN — target_meal_id is a
+ * PlanMeal.mealId with no FK, so the name may be null). Newest first. Returns
+ * snake_case objects via mapSuggestionRow. Backs GET /family/suggestions.
+ */
+export async function getHolderPendingSuggestions(
+  accountHolderId: string,
+): Promise<Record<string, unknown>[]> {
+  const { rows } = await pool.query(
+    `SELECT s.*,
+            su.display_name AS suggester_name,
+            rm.name AS replacement_meal_name,
+            tm.name AS target_meal_name
+     FROM meal_suggestions s
+     JOIN users su ON su.id = s.suggester_id
+     JOIN meals rm ON rm.id = s.replacement_meal_id
+     LEFT JOIN meals tm ON tm.id = s.target_meal_id
+     WHERE s.account_holder_id = $1
+       AND s.status = 'pending'
+     ORDER BY s.created_at DESC`,
+    [accountHolderId],
+  );
+
+  return (rows as Record<string, unknown>[]).map(mapSuggestionRow);
+}
+
+/**
+ * Count the *pending* suggestions addressed to an account holder. Backs the
+ * count-gated "Suggestions (N)" landing entry (rides on GET /landing).
+ */
+export async function countHolderPendingSuggestions(
+  accountHolderId: string,
+): Promise<number> {
+  const { rows } = await pool.query(
+    `SELECT count(*)::int AS count
+     FROM meal_suggestions
+     WHERE account_holder_id = $1
+       AND status = 'pending'`,
+    [accountHolderId],
+  );
+
+  return (rows[0] as { count: number }).count;
 }
