@@ -13,11 +13,31 @@ the changes.
 > attach to Chrome over the DevTools Protocol, but that attach is unreliable from WSL
 > — do **not** rely on them here (they typically fail with `ECONNREFUSED 127.0.0.1:9222`
 > or never drive the page). Use the repo's CDP bridge instead:
-> `python3 backend/scripts/cdp.py <subcommand>` — it auto-launches or reuses a headless
-> Chrome on `localhost:9222` and exposes `goto <url> [shot]`, `eval <js>`,
-> `click <js> [--wait N]`, `screenshot <path>`, `scroll <y> <path>`. Drive the UI by
-> evaluating JS (`eval`/`click`) and read state back with `eval`; capture `screenshot`s
-> as evidence. This is the same bridge documented in `CLAUDE.md`.
+> `python3 backend/scripts/cdp.py <subcommand>` — `goto <url> [shot]`, `eval <js>`,
+> `click <js> [--wait N]`, `screenshot <path>`, `scroll <y> <path>`. It attaches to
+> whatever Chrome is on `localhost:9222` (auto-launching one if none is up). Drive the
+> UI by evaluating JS (`eval`/`click`), read state back with `eval`, and capture
+> `screenshot`s as evidence. Same bridge as `CLAUDE.md`.
+>
+> **Run Chrome attached (headed/visible), NOT headless — the developer wants to watch
+> the verification happen.** WSLg supplies the display (`DISPLAY=:0`). Launch Chrome on
+> :9222 headed, and **persist it as a long-lived background process** (run it in the
+> background so it survives across turns — a `setsid`/`&`-detached Chrome gets reaped
+> when the turn ends and the window vanishes). Reuse one already on :9222 if present.
+> Two flags are mandatory: **never pass `--headless`**, and **always pass `--disable-gpu`**
+> — without it WSLg's GPU passthrough glitches and Chrome shows a blank window titled
+> "[WARN:COPY MODE]":
+> ```bash
+> DISPLAY=:0 google-chrome-stable --remote-debugging-port=9222 \
+>   --user-data-dir=/tmp/chrome-debug-profile --no-first-run --no-default-browser-check \
+>   --no-sandbox --disable-gpu --disable-dev-shm-usage --window-size=1400,1000 \
+>   http://localhost:5173/login
+> ```
+> After launch, confirm it actually *paints* (not just that CDP is up) with
+> `cdp.py screenshot <path>` and look at the image. Drive the app slowly enough to watch
+> (use `--wait` on `click`). Stop it with `pkill -9 -x chrome` (exact-name match — won't
+> touch the shell or the `chrome-mcp` node process); **never** use `pkill -f` with a
+> pattern that appears in your own command line (it kills your own shell).
 
 ---
 
