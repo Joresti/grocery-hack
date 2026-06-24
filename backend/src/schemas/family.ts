@@ -11,9 +11,11 @@ export const suggestMealBody = z.object({
 
 export type SuggestMealInput = z.output<typeof suggestMealBody>;
 
-// POST /family/suggestions/:id/accept — the account holder accepts a pending suggestion.
-export const acceptSuggestionParams = z.object({
+// Path params shared by the account-holder review actions
+// (POST /family/suggestions/:id/accept and POST /family/suggestions/:id/dismiss):
+// both take exactly the suggestion id.
+export const suggestionIdParams = z.object({
   id: z.string().uuid(),
 });
 
-export type AcceptSuggestionParams = z.output<typeof acceptSuggestionParams>;
+export type SuggestionIdParams = z.output<typeof suggestionIdParams>;

@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { suggestMealBody, acceptSuggestionParams } from '../schemas/family.js';
-import type { SuggestMealInput, AcceptSuggestionParams } from '../schemas/family.js';
-import { getFamilyPlan, suggestMeal, getHolderSuggestions, acceptSuggestion } from '../services/family.js';
+import { suggestMealBody, suggestionIdParams } from '../schemas/family.js';
+import type { SuggestMealInput, SuggestionIdParams } from '../schemas/family.js';
+import { getFamilyPlan, suggestMeal, getHolderSuggestions, acceptSuggestion, dismissSuggestion } from '../services/family.js';
 
 const router = Router();
 
@@ -31,11 +31,28 @@ router.get('/suggestions', requireAuth, async (req, res, next) => {
 router.post(
   '/suggestions/:id/accept',
   requireAuth,
-  validate({ params: acceptSuggestionParams }),
+  validate({ params: suggestionIdParams }),
   async (req, res, next) => {
     try {
-      const { id } = req.params as unknown as AcceptSuggestionParams;
+      const { id } = req.params as unknown as SuggestionIdParams;
       const suggestion = await acceptSuggestion(req.user!.userId, id);
+      res.json(suggestion);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// POST /api/v1/family/suggestions/:id/dismiss — account holder dismisses a pending suggestion
+// (marks it `dismissed`; the holder's plan is left completely unchanged — no swap, no re-match).
+router.post(
+  '/suggestions/:id/dismiss',
+  requireAuth,
+  validate({ params: suggestionIdParams }),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params as unknown as SuggestionIdParams;
+      const suggestion = await dismissSuggestion(req.user!.userId, id);
       res.json(suggestion);
     } catch (err) {
       next(err);

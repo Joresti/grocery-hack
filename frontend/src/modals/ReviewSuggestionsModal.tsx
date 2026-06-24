@@ -7,6 +7,7 @@ import { SpinnerIcon } from '../theme/icons';
 import { colors, fonts, fontWeights, radii } from '../theme/tokens';
 import { useHolderSuggestions } from '../hooks/useHolderSuggestions';
 import { useAcceptSuggestion } from '../hooks/useAcceptSuggestion';
+import { useDismissSuggestion } from '../hooks/useDismissSuggestion';
 import type { MealSuggestion } from '@groceryhack/shared/types';
 
 interface ReviewSuggestionsModalProps {
@@ -100,6 +101,7 @@ const emptyStyle: React.CSSProperties = {
 const actionsRowStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'flex-end',
+  gap: '10px',
   marginTop: '16px',
 };
 
@@ -127,17 +129,50 @@ const acceptButtonDisabledStyle: React.CSSProperties = {
   cursor: 'default',
 };
 
+// Neutral ghost pill (mockup .btn-dismiss) — dismiss is a non-destructive "no thanks", so it
+// uses muted text on a bordered card-bg pill, NOT danger red (reserved for deletes/errors).
+const dismissButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '8px',
+  fontFamily: fonts.body,
+  fontWeight: fontWeights.semibold,
+  fontSize: '0.95rem',
+  color: colors.textMuted,
+  backgroundColor: colors.white,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.pill,
+  padding: '11px 26px',
+  minHeight: '44px',
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
+};
+
+const dismissButtonDisabledStyle: React.CSSProperties = {
+  ...dismissButtonStyle,
+  opacity: 0.6,
+  cursor: 'default',
+};
+
 function ReviewCard({
   suggestion,
   onAccept,
+  onDismiss,
   isAccepting,
+  isDismissing,
 }: {
   suggestion: MealSuggestion;
   onAccept: (suggestion: MealSuggestion) => void;
+  onDismiss: (suggestion: MealSuggestion) => void;
   isAccepting: boolean;
+  isDismissing: boolean;
 }): React.ReactElement {
   const who = suggestion.suggesterName ?? 'A family member';
   const targetName = suggestion.targetMealName ?? 'a meal';
+  // While either action is in flight on this card, disable BOTH buttons so the holder can't
+  // accept-and-dismiss the same suggestion.
+  const busy = isAccepting || isDismissing;
   return (
     <div style={cardStyle}>
       <div style={whoStyle}>
@@ -151,9 +186,19 @@ function ReviewCard({
       <div style={actionsRowStyle}>
         <button
           type="button"
-          style={isAccepting ? acceptButtonDisabledStyle : acceptButtonStyle}
+          style={busy ? dismissButtonDisabledStyle : dismissButtonStyle}
+          onClick={() => onDismiss(suggestion)}
+          disabled={busy}
+          aria-label={`Dismiss ${suggestion.replacementMealName}`}
+        >
+          {isDismissing && <SpinnerIcon size={16} color={colors.textMuted} />}
+          {isDismissing ? 'Dismissing…' : 'Dismiss'}
+        </button>
+        <button
+          type="button"
+          style={busy ? acceptButtonDisabledStyle : acceptButtonStyle}
           onClick={() => onAccept(suggestion)}
-          disabled={isAccepting}
+          disabled={busy}
           aria-label={`Accept ${suggestion.replacementMealName}`}
         >
           {isAccepting && <SpinnerIcon size={16} color={colors.white} />}
@@ -165,10 +210,10 @@ function ReviewCard({
 }
 
 /**
- * Read-only review surface (mockup Screen 7). The account holder sees every pending
- * meal-swap suggestion her family members submitted — who, when, the replacement meal,
- * and the meal it replaces. No Accept/Dismiss controls this slice: those arrive wired
- * up in Slices 5 (accept) and 6 (dismiss).
+ * Review surface (mockup Screen 7). The account holder sees every pending meal-swap
+ * suggestion her family members submitted — who, when, the replacement meal, and the meal it
+ * replaces — and can Accept (Slice 5: swaps the meal into the plan) or Dismiss (Slice 6: marks
+ * it dismissed, leaving the plan unchanged) each one.
  */
 export function ReviewSuggestionsModal({
   isOpen,
@@ -177,10 +222,14 @@ export function ReviewSuggestionsModal({
   const { data, isLoading, isError } = useHolderSuggestions(isOpen);
   const suggestions = data?.suggestions ?? [];
   const acceptMutation = useAcceptSuggestion();
+  const dismissMutation = useDismissSuggestion();
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
+  // One action at a time across both mutations, so a holder can't accept-and-dismiss at once.
+  const isBusy = acceptMutation.isPending || dismissMutation.isPending;
+
   const handleAccept = (suggestion: MealSuggestion): void => {
-    if (acceptMutation.isPending) return; // one accept at a time
+    if (isBusy) return;
     acceptMutation.mutate(suggestion.id, {
       onSuccess: () =>
         setToast({ message: `Swapped ${suggestion.replacementMealName} into your plan`, type: 'success' }),
@@ -189,8 +238,19 @@ export function ReviewSuggestionsModal({
     });
   };
 
-  // The id of the in-flight accept, so only its card shows the spinner / disables.
+  const handleDismiss = (suggestion: MealSuggestion): void => {
+    if (isBusy) return;
+    dismissMutation.mutate(suggestion.id, {
+      onSuccess: () =>
+        setToast({ message: `Dismissed ${suggestion.replacementMealName} — your plan is unchanged`, type: 'success' }),
+      onError: () =>
+        setToast({ message: "Couldn't dismiss that suggestion. Please try again.", type: 'error' }),
+    });
+  };
+
+  // The id of the in-flight accept / dismiss, so only its card shows the spinner / disables.
   const acceptingId = acceptMutation.isPending ? acceptMutation.variables : undefined;
+  const dismissingId = dismissMutation.isPending ? dismissMutation.variables : undefined;
 
   return (
     <ModalOverlay isOpen={isOpen} onClose={onClose} title="Pending Suggestions">
@@ -213,7 +273,9 @@ export function ReviewSuggestionsModal({
               key={suggestion.id}
               suggestion={suggestion}
               onAccept={handleAccept}
+              onDismiss={handleDismiss}
               isAccepting={acceptingId === suggestion.id}
+              isDismissing={dismissingId === suggestion.id}
             />
           ))}
           <div style={infoBannerStyle}>

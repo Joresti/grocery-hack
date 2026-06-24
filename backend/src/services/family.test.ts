@@ -11,6 +11,7 @@ vi.mock('../db/queries/family.js', () => ({
   getPendingSuggestionForMeal: vi.fn(),
   getSuggestionById: vi.fn(),
   acceptSuggestionTransaction: vi.fn(),
+  dismissSuggestion: vi.fn(),
 }));
 
 vi.mock('../db/queries/landing.js', () => ({
@@ -32,7 +33,7 @@ vi.mock('../db/queries/optimizer.js', () => ({
 // Imports (after mocks)
 // ────────────────────────────────────────────────────────────
 
-import { suggestMeal, getFamilyPlan, acceptSuggestion } from './family.js';
+import { suggestMeal, getFamilyPlan, acceptSuggestion, dismissSuggestion } from './family.js';
 import * as familyQueries from '../db/queries/family.js';
 import * as landingQueries from '../db/queries/landing.js';
 import * as mealQueries from '../db/queries/meals.js';
@@ -373,6 +374,75 @@ describe('acceptSuggestion', () => {
     vi.mocked(familyQueries.acceptSuggestionTransaction).mockResolvedValue(null);
 
     await expect(acceptSuggestion(JESSICA_ID, 'sug-1')).rejects.toMatchObject({
+      code: 'SUGGESTION_NOT_PENDING',
+      status: 409,
+    });
+  });
+});
+
+describe('dismissSuggestion', () => {
+  const SUGGESTION_ROW = {
+    id: 'sug-1',
+    suggesterId: SAM_ID,
+    accountHolderId: JESSICA_ID,
+    weeklyPlanId: PLAN_ID,
+    targetMealId: TARGET_MEAL_ID,
+    replacementMealId: REPLACEMENT_MEAL_ID,
+    status: 'pending',
+  };
+  const DISMISSED_SUGGESTION = { ...CREATED_SUGGESTION, status: 'dismissed' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(familyQueries.getSuggestionById).mockResolvedValue({ ...SUGGESTION_ROW });
+    vi.mocked(familyQueries.dismissSuggestion).mockResolvedValue(DISMISSED_SUGGESTION);
+  });
+
+  it('marks the suggestion dismissed without loading or mutating the plan', async () => {
+    const result = await dismissSuggestion(JESSICA_ID, 'sug-1');
+
+    expect(result).toEqual(DISMISSED_SUGGESTION);
+    expect(familyQueries.dismissSuggestion).toHaveBeenCalledTimes(1);
+    expect(familyQueries.dismissSuggestion).toHaveBeenCalledWith('sug-1');
+    // The whole point of the slice: dismiss never touches the plan.
+    expect(landingQueries.getCurrentPlan).not.toHaveBeenCalled();
+    expect(mealQueries.findMealForMatching).not.toHaveBeenCalled();
+    expect(familyQueries.acceptSuggestionTransaction).not.toHaveBeenCalled();
+  });
+
+  it('throws SUGGESTION_NOT_FOUND (404) for an unknown id', async () => {
+    vi.mocked(familyQueries.getSuggestionById).mockResolvedValue(null);
+
+    await expect(dismissSuggestion(JESSICA_ID, 'missing')).rejects.toMatchObject({
+      code: 'SUGGESTION_NOT_FOUND',
+      status: 404,
+    });
+    expect(familyQueries.dismissSuggestion).not.toHaveBeenCalled();
+  });
+
+  it('throws NOT_SUGGESTION_HOLDER (403) when the caller is not the addressed holder', async () => {
+    // Sam (the family member who suggested it) is never an account holder.
+    await expect(dismissSuggestion(SAM_ID, 'sug-1')).rejects.toMatchObject({
+      code: 'NOT_SUGGESTION_HOLDER',
+      status: 403,
+    });
+    expect(familyQueries.dismissSuggestion).not.toHaveBeenCalled();
+  });
+
+  it('throws SUGGESTION_NOT_PENDING (409) when already reviewed', async () => {
+    vi.mocked(familyQueries.getSuggestionById).mockResolvedValue({ ...SUGGESTION_ROW, status: 'dismissed' });
+
+    await expect(dismissSuggestion(JESSICA_ID, 'sug-1')).rejects.toMatchObject({
+      code: 'SUGGESTION_NOT_PENDING',
+      status: 409,
+    });
+    expect(familyQueries.dismissSuggestion).not.toHaveBeenCalled();
+  });
+
+  it('maps a lost dismiss race (query returns null) to SUGGESTION_NOT_PENDING (409)', async () => {
+    vi.mocked(familyQueries.dismissSuggestion).mockResolvedValue(null);
+
+    await expect(dismissSuggestion(JESSICA_ID, 'sug-1')).rejects.toMatchObject({
       code: 'SUGGESTION_NOT_PENDING',
       status: 409,
     });

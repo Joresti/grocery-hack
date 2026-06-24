@@ -7,6 +7,7 @@ import {
   getHolderPendingSuggestions,
   getSuggestionById,
   acceptSuggestionTransaction,
+  dismissSuggestion as dismissSuggestionQuery,
 } from '../db/queries/family.js';
 import { getCurrentPlan, getSavingsThisWeek } from '../db/queries/landing.js';
 import { findMealById, findMealForMatching } from '../db/queries/meals.js';
@@ -280,6 +281,49 @@ export async function acceptSuggestion(
     newOneStore,
     newTwoStore,
   );
+  if (!updated) {
+    // Lost a race — another accept/dismiss flipped it out of `pending` first.
+    throwConflict('SUGGESTION_NOT_PENDING', 'That suggestion has already been reviewed.');
+  }
+
+  return updated;
+}
+
+/**
+ * The account holder dismisses a family member's pending suggestion: the suggestion is
+ * marked `dismissed` and the holder's plan is left **completely unchanged** — no swap, no
+ * re-match, no shopping-list / savings change. The dismissed row drops out of every
+ * pending-only read (the holder's GET /suggestions, the /landing count, and the suggester's
+ * GET /family/plan markers). Returns the updated suggestion.
+ *
+ * Guards: 404 SUGGESTION_NOT_FOUND, 403 NOT_SUGGESTION_HOLDER, 409 SUGGESTION_NOT_PENDING.
+ * Deliberately omits the NO_PLAN / PLAN_CHANGED guards `acceptSuggestion` needs — dismiss
+ * never touches `weekly_plans`, so a stale-week suggestion can still be cleared out. A family
+ * member can never satisfy the holder guard (their id is never an account_holder_id), so they
+ * are blocked from dismissing — made observable and tested in Slice 8.
+ */
+export async function dismissSuggestion(
+  holderId: string,
+  suggestionId: string,
+): Promise<Record<string, unknown>> {
+  // 1. The suggestion must exist.
+  const suggestion = await getSuggestionById(suggestionId);
+  if (!suggestion) {
+    throwNotFound('SUGGESTION_NOT_FOUND', "That suggestion doesn't exist.");
+  }
+
+  // 2. It must be addressed to the caller (account holder only).
+  if (suggestion.accountHolderId !== holderId) {
+    throwForbidden('NOT_SUGGESTION_HOLDER', "That suggestion isn't addressed to you.");
+  }
+
+  // 3. It must still be pending (idempotent / race-safe).
+  if (suggestion.status !== 'pending') {
+    throwConflict('SUGGESTION_NOT_PENDING', 'That suggestion has already been reviewed.');
+  }
+
+  // 4. Flip status to `dismissed`. No plan load, no swap — the plan stays byte-identical.
+  const updated = await dismissSuggestionQuery(suggestionId);
   if (!updated) {
     // Lost a race — another accept/dismiss flipped it out of `pending` first.
     throwConflict('SUGGESTION_NOT_PENDING', 'That suggestion has already been reviewed.');

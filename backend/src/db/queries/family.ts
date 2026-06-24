@@ -262,6 +262,36 @@ export async function markSuggestionAccepted(
 }
 
 /**
+ * Flip a suggestion to `dismissed` (only if still pending — race-safe) and return it with
+ * the denormalised names a `MealSuggestion` requires. Returns null if the row was not
+ * pending (already accepted/dismissed). Unlike `markSuggestionAccepted`, there is no second
+ * write to keep atomic (dismiss never touches `weekly_plans`), so this runs directly on
+ * `pool` — no `PoolClient`, no transaction.
+ */
+export async function dismissSuggestion(id: string): Promise<Record<string, unknown> | null> {
+  const { rows } = await pool.query(
+    `WITH updated AS (
+       UPDATE meal_suggestions
+       SET status = 'dismissed'
+       WHERE id = $1 AND status = 'pending'
+       RETURNING *
+     )
+     SELECT u.*,
+            su.display_name AS suggester_name,
+            rm.name AS replacement_meal_name,
+            tm.name AS target_meal_name
+     FROM updated u
+     JOIN users su ON su.id = u.suggester_id
+     JOIN meals rm ON rm.id = u.replacement_meal_id
+     LEFT JOIN meals tm ON tm.id = u.target_meal_id`,
+    [id],
+  );
+
+  const row = rows[0] as Record<string, unknown> | undefined;
+  return row ? mapSuggestionRow(row) : null;
+}
+
+/**
  * Persist the swapped plan JSONB on `weekly_plans` (camelCase GroceryPlan objects, like
  * `saveWeeklyPlan`). Runs on the supplied transaction client.
  */

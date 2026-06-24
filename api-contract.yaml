@@ -1495,6 +1495,56 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /family/suggestions/{id}/dismiss:
+    post:
+      tags: [Family]
+      summary: Dismiss a pending suggestion (leaves the holder's plan unchanged)
+      description: |
+        The account holder dismisses a pending meal-swap suggestion addressed to them. The
+        suggestion is marked `dismissed` and the holder's plan is left **completely unchanged**
+        — no swap, no re-match, no shopping-list / subtotal / total / savings change. The
+        dismissed suggestion drops out of every pending-only read (the holder's
+        GET /family/suggestions, the GET /landing `pending_suggestion_count`, and the
+        suggester's GET /family/plan pending markers). Unlike accept, dismiss has no NO_PLAN /
+        PLAN_CHANGED guards — a stale-week suggestion can still be cleared out. Account-holder
+        only: a family member (whose id is never an `account_holder_id`) always fails the holder
+        guard with 403.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The suggestion id
+      responses:
+        '200':
+          description: The updated suggestion (status `dismissed`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MealSuggestion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: NOT_SUGGESTION_HOLDER — the suggestion isn't addressed to the caller
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: SUGGESTION_NOT_FOUND — no such suggestion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: SUGGESTION_NOT_PENDING — the suggestion was already accepted/dismissed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /family/plan/suggestions:
     post:
       tags: [Family]
