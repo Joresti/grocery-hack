@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ModalOverlay } from './ModalOverlay';
 import { LoadingSpinner } from '../components/shared/LoadingSpinner';
 import { InitialsAvatar } from '../components/shared/InitialsAvatar';
+import { Toast } from '../components/shared';
+import { SpinnerIcon } from '../theme/icons';
 import { colors, fonts, fontWeights, radii } from '../theme/tokens';
 import { useHolderSuggestions } from '../hooks/useHolderSuggestions';
+import { useAcceptSuggestion } from '../hooks/useAcceptSuggestion';
 import type { MealSuggestion } from '@groceryhack/shared/types';
 
 interface ReviewSuggestionsModalProps {
@@ -94,7 +97,45 @@ const emptyStyle: React.CSSProperties = {
   padding: '32px 8px',
 };
 
-function ReviewCard({ suggestion }: { suggestion: MealSuggestion }): React.ReactElement {
+const actionsRowStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'flex-end',
+  marginTop: '16px',
+};
+
+const acceptButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '8px',
+  fontFamily: fonts.body,
+  fontWeight: fontWeights.semibold,
+  fontSize: '0.95rem',
+  color: colors.white,
+  backgroundColor: colors.primary,
+  border: 'none',
+  borderRadius: radii.pill,
+  padding: '11px 30px',
+  minHeight: '44px',
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
+};
+
+const acceptButtonDisabledStyle: React.CSSProperties = {
+  ...acceptButtonStyle,
+  opacity: 0.6,
+  cursor: 'default',
+};
+
+function ReviewCard({
+  suggestion,
+  onAccept,
+  isAccepting,
+}: {
+  suggestion: MealSuggestion;
+  onAccept: (suggestion: MealSuggestion) => void;
+  isAccepting: boolean;
+}): React.ReactElement {
   const who = suggestion.suggesterName ?? 'A family member';
   const targetName = suggestion.targetMealName ?? 'a meal';
   return (
@@ -107,6 +148,18 @@ function ReviewCard({ suggestion }: { suggestion: MealSuggestion }): React.React
       </div>
       <p style={newMealStyle}>{suggestion.replacementMealName}</p>
       <p style={replaceStyle}>Replaces {targetName} in this week&rsquo;s plan</p>
+      <div style={actionsRowStyle}>
+        <button
+          type="button"
+          style={isAccepting ? acceptButtonDisabledStyle : acceptButtonStyle}
+          onClick={() => onAccept(suggestion)}
+          disabled={isAccepting}
+          aria-label={`Accept ${suggestion.replacementMealName}`}
+        >
+          {isAccepting && <SpinnerIcon size={16} color={colors.white} />}
+          {isAccepting ? 'Accepting…' : 'Accept'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -123,6 +176,21 @@ export function ReviewSuggestionsModal({
 }: ReviewSuggestionsModalProps): React.ReactElement {
   const { data, isLoading, isError } = useHolderSuggestions(isOpen);
   const suggestions = data?.suggestions ?? [];
+  const acceptMutation = useAcceptSuggestion();
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const handleAccept = (suggestion: MealSuggestion): void => {
+    if (acceptMutation.isPending) return; // one accept at a time
+    acceptMutation.mutate(suggestion.id, {
+      onSuccess: () =>
+        setToast({ message: `Swapped ${suggestion.replacementMealName} into your plan`, type: 'success' }),
+      onError: () =>
+        setToast({ message: "Couldn't accept that suggestion. Please try again.", type: 'error' }),
+    });
+  };
+
+  // The id of the in-flight accept, so only its card shows the spinner / disables.
+  const acceptingId = acceptMutation.isPending ? acceptMutation.variables : undefined;
 
   return (
     <ModalOverlay isOpen={isOpen} onClose={onClose} title="Pending Suggestions">
@@ -141,7 +209,12 @@ export function ReviewSuggestionsModal({
       {!isLoading && !isError && suggestions.length > 0 && (
         <>
           {suggestions.map((suggestion) => (
-            <ReviewCard key={suggestion.id} suggestion={suggestion} />
+            <ReviewCard
+              key={suggestion.id}
+              suggestion={suggestion}
+              onAccept={handleAccept}
+              isAccepting={acceptingId === suggestion.id}
+            />
           ))}
           <div style={infoBannerStyle}>
             <span>
@@ -150,6 +223,13 @@ export function ReviewSuggestionsModal({
           </div>
         </>
       )}
+
+      <Toast
+        message={toast?.message ?? ''}
+        type={toast?.type ?? 'success'}
+        visible={toast !== null}
+        onDismiss={() => setToast(null)}
+      />
     </ModalOverlay>
   );
 }

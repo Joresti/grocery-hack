@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { suggestMealBody } from '../schemas/family.js';
-import type { SuggestMealInput } from '../schemas/family.js';
-import { getFamilyPlan, suggestMeal, getHolderSuggestions } from '../services/family.js';
+import { suggestMealBody, acceptSuggestionParams } from '../schemas/family.js';
+import type { SuggestMealInput, AcceptSuggestionParams } from '../schemas/family.js';
+import { getFamilyPlan, suggestMeal, getHolderSuggestions, acceptSuggestion } from '../services/family.js';
 
 const router = Router();
 
@@ -26,6 +26,22 @@ router.get('/suggestions', requireAuth, async (req, res, next) => {
     next(err);
   }
 });
+
+// POST /api/v1/family/suggestions/:id/accept — account holder accepts a pending suggestion
+router.post(
+  '/suggestions/:id/accept',
+  requireAuth,
+  validate({ params: acceptSuggestionParams }),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params as unknown as AcceptSuggestionParams;
+      const suggestion = await acceptSuggestion(req.user!.userId, id);
+      res.json(suggestion);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 // POST /api/v1/family/plan/suggestions — family member suggests a replacement meal
 router.post(

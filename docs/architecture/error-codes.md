@@ -137,6 +137,10 @@ These can be returned by any endpoint.
 | `MEAL_NOT_IN_PLAN` | 400 | POST /family/plan/suggestions | "That meal isn't in the current plan." | `target_meal_id` is not a `PlanMeal.mealId` in the holder's current plan JSONB. |
 | `INVALID_MEAL` | 400 | POST /family/plan/suggestions | "That replacement meal doesn't exist." | `replacement_meal_id` references a nonexistent meal. |
 | `DUPLICATE_SUGGESTION` | 409 | POST /family/plan/suggestions | "You already have a pending suggestion for this meal." | A pending suggestion from this family member already exists for the target meal (one pending suggestion per meal per family member). |
+| `SUGGESTION_NOT_FOUND` | 404 | POST /family/suggestions/{id}/accept | "That suggestion doesn't exist." | No `meal_suggestions` row with that id. |
+| `NOT_SUGGESTION_HOLDER` | 403 | POST /family/suggestions/{id}/accept | "That suggestion isn't addressed to you." | The suggestion's `account_holder_id` is not the caller (a family member can never accept — their id is never an `account_holder_id`). |
+| `SUGGESTION_NOT_PENDING` | 409 | POST /family/suggestions/{id}/accept | "That suggestion has already been reviewed." | The suggestion is already `accepted` or `dismissed` (keeps accept idempotent / race-safe). |
+| `PLAN_CHANGED` | 409 | POST /family/suggestions/{id}/accept | "Your plan has changed since this suggestion was made." | The suggestion's `weekly_plan_id` no longer matches the holder's current-week plan (a stale-week suggestion can't mutate this week's plan). |
 
 ---
 

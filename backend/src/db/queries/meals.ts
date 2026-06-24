@@ -88,6 +88,37 @@ export async function findMealById(
   return mapMealRow(rows[0] as Record<string, unknown>);
 }
 
+export interface MealForMatching {
+  id: string;
+  name: string;
+  ingredientKeywords: string[];
+  servings: number;
+}
+
+/**
+ * Fetch the fields the meal-swap re-match needs for a single meal: name, the
+ * `ingredient_keywords` that `mapMealRow`/`findMealById` deliberately omit, and
+ * servings (for cost-per-serving). Returns camelCase, or null if the meal is gone.
+ * Mirrors the LikedMealRow shape from `findLikedMealsFull`.
+ */
+export async function findMealForMatching(
+  mealId: string,
+): Promise<MealForMatching | null> {
+  const { rows } = await pool.query(
+    `SELECT id, name, ingredient_keywords, servings FROM meals WHERE id = $1`,
+    [mealId],
+  );
+
+  const row = rows[0] as Record<string, unknown> | undefined;
+  if (!row) return null;
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    ingredientKeywords: (row.ingredient_keywords as string[]) ?? [],
+    servings: (row.servings as number) ?? 4,
+  };
+}
+
 /**
  * Record a swipe (like or skip).
  * Inserts into user_meal_preferences and updates aggregate counts on meals.

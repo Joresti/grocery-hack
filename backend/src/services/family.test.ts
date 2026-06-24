@@ -9,6 +9,8 @@ vi.mock('../db/queries/family.js', () => ({
   createMealSuggestion: vi.fn(),
   getMySuggestionsForPlan: vi.fn(),
   getPendingSuggestionForMeal: vi.fn(),
+  getSuggestionById: vi.fn(),
+  acceptSuggestionTransaction: vi.fn(),
 }));
 
 vi.mock('../db/queries/landing.js', () => ({
@@ -18,16 +20,23 @@ vi.mock('../db/queries/landing.js', () => ({
 
 vi.mock('../db/queries/meals.js', () => ({
   findMealById: vi.fn(),
+  findMealForMatching: vi.fn(),
+}));
+
+vi.mock('../db/queries/optimizer.js', () => ({
+  findActiveDealsByBrands: vi.fn(),
+  findUserById: vi.fn(),
 }));
 
 // ────────────────────────────────────────────────────────────
 // Imports (after mocks)
 // ────────────────────────────────────────────────────────────
 
-import { suggestMeal, getFamilyPlan } from './family.js';
+import { suggestMeal, getFamilyPlan, acceptSuggestion } from './family.js';
 import * as familyQueries from '../db/queries/family.js';
 import * as landingQueries from '../db/queries/landing.js';
 import * as mealQueries from '../db/queries/meals.js';
+import * as optimizerQueries from '../db/queries/optimizer.js';
 
 const SAM_ID = '550e8400-e29b-41d4-a716-446655440000';
 const JESSICA_ID = '11111111-1111-1111-1111-111111111111';
@@ -222,6 +231,150 @@ describe('getFamilyPlan', () => {
     await expect(getFamilyPlan(JESSICA_ID)).rejects.toMatchObject({
       code: 'NOT_A_FAMILY_MEMBER',
       status: 403,
+    });
+  });
+});
+
+describe('acceptSuggestion', () => {
+  const SUGGESTION_ROW = {
+    id: 'sug-1',
+    suggesterId: SAM_ID,
+    accountHolderId: JESSICA_ID,
+    weeklyPlanId: PLAN_ID,
+    targetMealId: TARGET_MEAL_ID,
+    replacementMealId: REPLACEMENT_MEAL_ID,
+    status: 'pending',
+  };
+  const ACCEPTED_SUGGESTION = { ...CREATED_SUGGESTION, status: 'accepted' };
+
+  /** A full one-store plan whose stop holds the target meal and an on-sale line for it. */
+  function fullOneStorePlan(): Record<string, unknown> {
+    return {
+      id: PLAN_ID,
+      token: 'tok',
+      week_of: '2026-06-15',
+      one_store_optimized: {
+        stops: [
+          {
+            storeBrandName: 'Walmart',
+            storeLocationId: 'loc-1',
+            storeAddress: '1 Rd',
+            storeBrandId: 'brand-a',
+            meals: [
+              { mealId: TARGET_MEAL_ID, name: 'Beef Taco Bowl', costPerServing: 1.5, totalCost: 6, savings: 2 },
+            ],
+            items: [
+              { name: 'Ground Beef', quantity: '1', salePrice: 6, regularPrice: 8, isOnSale: true, dealNote: null, forMeal: 'Beef Taco Bowl' },
+            ],
+            subtotal: 6,
+          },
+        ],
+        total: 6,
+        budgetRemaining: 94,
+        estimatedSavings: 2,
+      },
+      two_store_optimized: null,
+      watchlist_alerts: [],
+      recipe_alerts: [],
+      created_at: '2026-06-15T00:00:00.000Z',
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(familyQueries.getSuggestionById).mockResolvedValue({ ...SUGGESTION_ROW });
+    vi.mocked(landingQueries.getCurrentPlan).mockResolvedValue(fullOneStorePlan());
+    vi.mocked(mealQueries.findMealForMatching).mockResolvedValue({
+      id: REPLACEMENT_MEAL_ID,
+      name: 'Creamy Mushroom Pasta',
+      ingredientKeywords: ['mushroom', 'pasta'],
+      servings: 4,
+    });
+    vi.mocked(optimizerQueries.findActiveDealsByBrands).mockResolvedValue([]);
+    vi.mocked(optimizerQueries.findUserById).mockResolvedValue({
+      id: JESSICA_ID,
+      postalCode: 'L8P1A1',
+      lat: null,
+      lng: null,
+      budget: 100,
+      maxStores: 1,
+      dietaryRestrictions: [],
+    });
+    vi.mocked(familyQueries.acceptSuggestionTransaction).mockResolvedValue(ACCEPTED_SUGGESTION);
+  });
+
+  it('swaps the target for the replacement and persists status=accepted', async () => {
+    const result = await acceptSuggestion(JESSICA_ID, 'sug-1');
+
+    expect(result).toEqual(ACCEPTED_SUGGESTION);
+    expect(familyQueries.acceptSuggestionTransaction).toHaveBeenCalledTimes(1);
+
+    const call = vi.mocked(familyQueries.acceptSuggestionTransaction).mock.calls[0]!;
+    const [suggestionId, planId, newOneStore] = call;
+    expect(suggestionId).toBe('sug-1');
+    expect(planId).toBe(PLAN_ID);
+    const mealIds = newOneStore.stops.flatMap((s) => s.meals.map((m) => m.mealId));
+    expect(mealIds).not.toContain(TARGET_MEAL_ID);
+    expect(mealIds).toContain(REPLACEMENT_MEAL_ID);
+  });
+
+  it('throws SUGGESTION_NOT_FOUND (404) for an unknown id', async () => {
+    vi.mocked(familyQueries.getSuggestionById).mockResolvedValue(null);
+
+    await expect(acceptSuggestion(JESSICA_ID, 'missing')).rejects.toMatchObject({
+      code: 'SUGGESTION_NOT_FOUND',
+      status: 404,
+    });
+    expect(familyQueries.acceptSuggestionTransaction).not.toHaveBeenCalled();
+  });
+
+  it('throws NOT_SUGGESTION_HOLDER (403) when the caller is not the addressed holder', async () => {
+    // Sam (the family member who suggested it) is never an account holder.
+    await expect(acceptSuggestion(SAM_ID, 'sug-1')).rejects.toMatchObject({
+      code: 'NOT_SUGGESTION_HOLDER',
+      status: 403,
+    });
+    expect(familyQueries.acceptSuggestionTransaction).not.toHaveBeenCalled();
+  });
+
+  it('throws SUGGESTION_NOT_PENDING (409) when already reviewed', async () => {
+    vi.mocked(familyQueries.getSuggestionById).mockResolvedValue({ ...SUGGESTION_ROW, status: 'accepted' });
+
+    await expect(acceptSuggestion(JESSICA_ID, 'sug-1')).rejects.toMatchObject({
+      code: 'SUGGESTION_NOT_PENDING',
+      status: 409,
+    });
+    expect(familyQueries.acceptSuggestionTransaction).not.toHaveBeenCalled();
+  });
+
+  it('throws NO_PLAN (404) when the holder has no current plan', async () => {
+    vi.mocked(landingQueries.getCurrentPlan).mockResolvedValue(null);
+
+    await expect(acceptSuggestion(JESSICA_ID, 'sug-1')).rejects.toMatchObject({
+      code: 'NO_PLAN',
+      status: 404,
+    });
+  });
+
+  it('throws PLAN_CHANGED (409) when the suggestion targets a stale plan', async () => {
+    vi.mocked(landingQueries.getCurrentPlan).mockResolvedValue({
+      ...fullOneStorePlan(),
+      id: 'a-different-plan-id',
+    });
+
+    await expect(acceptSuggestion(JESSICA_ID, 'sug-1')).rejects.toMatchObject({
+      code: 'PLAN_CHANGED',
+      status: 409,
+    });
+    expect(familyQueries.acceptSuggestionTransaction).not.toHaveBeenCalled();
+  });
+
+  it('maps a lost accept race (transaction returns null) to SUGGESTION_NOT_PENDING (409)', async () => {
+    vi.mocked(familyQueries.acceptSuggestionTransaction).mockResolvedValue(null);
+
+    await expect(acceptSuggestion(JESSICA_ID, 'sug-1')).rejects.toMatchObject({
+      code: 'SUGGESTION_NOT_PENDING',
+      status: 409,
     });
   });
 });

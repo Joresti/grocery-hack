@@ -1446,6 +1446,55 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /family/suggestions/{id}/accept:
+    post:
+      tags: [Family]
+      summary: Accept a pending suggestion (swaps the meal in the holder's plan)
+      description: |
+        The account holder accepts a pending meal-swap suggestion addressed to them. The
+        target meal is swapped for the replacement in the holder's current-week plan: the
+        replacement's ingredients are re-matched against the deals already available at the
+        plan's selected store(s) — without re-picking stores or re-running the full
+        optimizer — the shopping list, stop subtotals, plan total, and estimated savings
+        are recomputed, and the suggestion is marked `accepted`, all in one transaction.
+        Account-holder only: a family member (whose id is never an `account_holder_id`)
+        always fails the holder guard with 403.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The suggestion id
+      responses:
+        '200':
+          description: The updated suggestion (status `accepted`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MealSuggestion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: NOT_SUGGESTION_HOLDER — the suggestion isn't addressed to the caller
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: SUGGESTION_NOT_FOUND (no such suggestion) or NO_PLAN (holder has no current-week plan)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: SUGGESTION_NOT_PENDING (already accepted/dismissed) or PLAN_CHANGED (suggestion targets a stale plan)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /family/plan/suggestions:
     post:
       tags: [Family]

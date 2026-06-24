@@ -1,12 +1,18 @@
+import type { GroceryPlan } from '@groceryhack/shared/types.js';
 import {
   getFamilyMemberLink,
   createMealSuggestion,
   getMySuggestionsForPlan,
   getPendingSuggestionForMeal,
   getHolderPendingSuggestions,
+  getSuggestionById,
+  acceptSuggestionTransaction,
 } from '../db/queries/family.js';
 import { getCurrentPlan, getSavingsThisWeek } from '../db/queries/landing.js';
-import { findMealById } from '../db/queries/meals.js';
+import { findMealById, findMealForMatching } from '../db/queries/meals.js';
+import { findActiveDealsByBrands, findUserById } from '../db/queries/optimizer.js';
+import { buildDealsByBrand, getAverageDealPrice } from './optimizer.js';
+import { swapMealInPlan, type MatchableMeal } from './mealSwap.js';
 import {
   throwBadRequest,
   throwConflict,
@@ -156,4 +162,128 @@ export async function suggestMeal(
     }
     throw err;
   }
+}
+
+/** Distinct store-brand ids across both plan representations (no store re-pick). */
+function collectPlanBrandIds(reps: (GroceryPlan | null)[]): string[] {
+  const ids = new Set<string>();
+  for (const rep of reps) {
+    if (!rep) continue;
+    for (const stop of rep.stops) ids.add(stop.storeBrandId);
+  }
+  return [...ids];
+}
+
+/**
+ * Load the matchable fields (keywords/servings/name) for every distinct plan meal except
+ * the target. The swap needs these because the plan JSONB stores no ingredient keywords
+ * and `forMeal` is first-meal-only, so each stop is rebuilt from the real keyword sets.
+ */
+async function loadRemainingMeals(
+  reps: (GroceryPlan | null)[],
+  targetMealId: string,
+): Promise<Map<string, MatchableMeal>> {
+  const ids = new Set<string>();
+  for (const rep of reps) {
+    if (!rep) continue;
+    for (const stop of rep.stops) {
+      for (const meal of stop.meals) {
+        if (meal.mealId !== targetMealId) ids.add(meal.mealId);
+      }
+    }
+  }
+
+  const meals = new Map<string, MatchableMeal>();
+  for (const id of ids) {
+    const meal = await findMealForMatching(id);
+    if (meal) meals.set(id, meal);
+  }
+  return meals;
+}
+
+/**
+ * The account holder accepts a family member's pending suggestion: the target meal is
+ * swapped for the replacement in the holder's current-week plan (re-matched against the
+ * deals already at the plan's selected store(s) — no store re-pick, no full re-optimize),
+ * the shopping list / subtotals / total / savings are recomputed, and the suggestion is
+ * marked `accepted` — all in one transaction. Returns the updated suggestion.
+ *
+ * Guards: 404 SUGGESTION_NOT_FOUND, 403 NOT_SUGGESTION_HOLDER, 409 SUGGESTION_NOT_PENDING,
+ * 404 NO_PLAN, 409 PLAN_CHANGED. A family member can never satisfy the holder guard (their
+ * id is never an account_holder_id), so they are blocked from accepting — made observable
+ * and tested in Slice 8.
+ */
+export async function acceptSuggestion(
+  holderId: string,
+  suggestionId: string,
+): Promise<Record<string, unknown>> {
+  // 1. The suggestion must exist.
+  const suggestion = await getSuggestionById(suggestionId);
+  if (!suggestion) {
+    throwNotFound('SUGGESTION_NOT_FOUND', "That suggestion doesn't exist.");
+  }
+
+  // 2. It must be addressed to the caller (account holder only).
+  if (suggestion.accountHolderId !== holderId) {
+    throwForbidden('NOT_SUGGESTION_HOLDER', "That suggestion isn't addressed to you.");
+  }
+
+  // 3. It must still be pending (idempotent / race-safe).
+  if (suggestion.status !== 'pending') {
+    throwConflict('SUGGESTION_NOT_PENDING', 'That suggestion has already been reviewed.');
+  }
+
+  // 4. The holder must have a current plan, and it must be the one the suggestion targets.
+  const plan = await getCurrentPlan(holderId);
+  if (!plan) {
+    throwNotFound('NO_PLAN', "You don't have a plan for this week yet.");
+  }
+  if (suggestion.weeklyPlanId !== plan.id) {
+    throwConflict('PLAN_CHANGED', 'Your plan has changed since this suggestion was made.');
+  }
+
+  // 5. Re-match the replacement meal against the plan's existing store brand(s).
+  const replacement = await findMealForMatching(suggestion.replacementMealId);
+  if (!replacement) {
+    throwBadRequest('INVALID_MEAL', "That replacement meal doesn't exist anymore.");
+  }
+
+  const oneStore = (plan.one_store_optimized as GroceryPlan | null) ?? null;
+  const twoStore = (plan.two_store_optimized as GroceryPlan | null) ?? null;
+  const reps = [oneStore, twoStore];
+
+  const deals = await findActiveDealsByBrands(collectPlanBrandIds(reps));
+  const dealsByBrand = buildDealsByBrand(deals);
+  const fallbackPrice = getAverageDealPrice(deals);
+
+  const profile = await findUserById(holderId);
+  const budget = profile?.budget ?? null;
+
+  const remainingMeals = await loadRemainingMeals(reps, suggestion.targetMealId);
+
+  const newOneStore = oneStore
+    ? swapMealInPlan(oneStore, suggestion.targetMealId, replacement, remainingMeals, dealsByBrand, fallbackPrice, budget)
+    : null;
+  const newTwoStore = twoStore
+    ? swapMealInPlan(twoStore, suggestion.targetMealId, replacement, remainingMeals, dealsByBrand, fallbackPrice, budget)
+    : null;
+
+  if (!newOneStore) {
+    // one_store_optimized is the canonical representation and is always present.
+    throwNotFound('NO_PLAN', "You don't have a plan for this week yet.");
+  }
+
+  // 6. Persist the status flip + swapped plan JSONB atomically.
+  const updated = await acceptSuggestionTransaction(
+    suggestionId,
+    plan.id as string,
+    newOneStore,
+    newTwoStore,
+  );
+  if (!updated) {
+    // Lost a race — another accept/dismiss flipped it out of `pending` first.
+    throwConflict('SUGGESTION_NOT_PENDING', 'That suggestion has already been reviewed.');
+  }
+
+  return updated;
 }

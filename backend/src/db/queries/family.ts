@@ -1,3 +1,5 @@
+import type { PoolClient } from 'pg';
+import type { GroceryPlan } from '@groceryhack/shared/types.js';
 import { pool } from '../client.js';
 
 export interface FamilyMemberLink {
@@ -190,4 +192,128 @@ export async function countHolderPendingSuggestions(
   );
 
   return (rows[0] as { count: number }).count;
+}
+
+export interface SuggestionRow {
+  id: string;
+  suggesterId: string;
+  accountHolderId: string;
+  weeklyPlanId: string;
+  targetMealId: string;
+  replacementMealId: string;
+  status: string;
+}
+
+/**
+ * Load a single suggestion's guard fields (status, holder, plan, target/replacement
+ * meal ids), or null if it doesn't exist. Backs the 404/403/409 guards in
+ * `acceptSuggestion`.
+ */
+export async function getSuggestionById(id: string): Promise<SuggestionRow | null> {
+  const { rows } = await pool.query(
+    `SELECT id, suggester_id, account_holder_id, weekly_plan_id,
+            target_meal_id, replacement_meal_id, status
+     FROM meal_suggestions WHERE id = $1`,
+    [id],
+  );
+
+  const row = rows[0] as Record<string, unknown> | undefined;
+  if (!row) return null;
+  return {
+    id: row.id as string,
+    suggesterId: row.suggester_id as string,
+    accountHolderId: row.account_holder_id as string,
+    weeklyPlanId: row.weekly_plan_id as string,
+    targetMealId: row.target_meal_id as string,
+    replacementMealId: row.replacement_meal_id as string,
+    status: row.status as string,
+  };
+}
+
+/**
+ * Flip a suggestion to `accepted` (only if still pending — race-safe) and return it with
+ * the denormalised names a `MealSuggestion` requires. Returns null if the row was not
+ * pending (already accepted/dismissed). Runs on the supplied transaction client.
+ */
+export async function markSuggestionAccepted(
+  client: PoolClient,
+  id: string,
+): Promise<Record<string, unknown> | null> {
+  const { rows } = await client.query(
+    `WITH updated AS (
+       UPDATE meal_suggestions
+       SET status = 'accepted'
+       WHERE id = $1 AND status = 'pending'
+       RETURNING *
+     )
+     SELECT u.*,
+            su.display_name AS suggester_name,
+            rm.name AS replacement_meal_name,
+            tm.name AS target_meal_name
+     FROM updated u
+     JOIN users su ON su.id = u.suggester_id
+     JOIN meals rm ON rm.id = u.replacement_meal_id
+     LEFT JOIN meals tm ON tm.id = u.target_meal_id`,
+    [id],
+  );
+
+  const row = rows[0] as Record<string, unknown> | undefined;
+  return row ? mapSuggestionRow(row) : null;
+}
+
+/**
+ * Persist the swapped plan JSONB on `weekly_plans` (camelCase GroceryPlan objects, like
+ * `saveWeeklyPlan`). Runs on the supplied transaction client.
+ */
+export async function updatePlanRepresentations(
+  client: PoolClient,
+  planId: string,
+  oneStoreOptimized: GroceryPlan,
+  twoStoreOptimized: GroceryPlan | null,
+): Promise<void> {
+  await client.query(
+    `UPDATE weekly_plans
+     SET one_store_optimized = $2,
+         two_store_optimized = $3
+     WHERE id = $1`,
+    [
+      planId,
+      JSON.stringify(oneStoreOptimized),
+      twoStoreOptimized ? JSON.stringify(twoStoreOptimized) : null,
+    ],
+  );
+}
+
+/**
+ * One transaction: mark the suggestion accepted (race-safe), then persist the swapped
+ * plan representations. The status flip runs first so a non-pending suggestion (lost
+ * race) rolls back without touching the plan. Returns the updated suggestion, or null if
+ * it was no longer pending. Pattern mirrors `recordSwipe`.
+ */
+export async function acceptSuggestionTransaction(
+  suggestionId: string,
+  planId: string,
+  oneStoreOptimized: GroceryPlan,
+  twoStoreOptimized: GroceryPlan | null,
+): Promise<Record<string, unknown> | null> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const suggestion = await markSuggestionAccepted(client, suggestionId);
+    if (!suggestion) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    await updatePlanRepresentations(client, planId, oneStoreOptimized, twoStoreOptimized);
+
+    await client.query('COMMIT');
+    return suggestion;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }

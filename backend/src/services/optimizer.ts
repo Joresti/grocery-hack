@@ -9,7 +9,10 @@ import { logger } from '../lib/logger.js';
 // Internal interfaces
 // ────────────────────────────────────────────────────────────
 
-interface ScoredMeal {
+// Exported so the meal-swap service (services/mealSwap.ts) can reuse the same
+// matching helpers (calculateBrandCost / buildPlanStop / buildNeededKeywords)
+// with identically-shaped inputs when re-matching a replacement meal.
+export interface ScoredMeal {
   id: string;
   name: string;
   ingredientKeywords: string[];
@@ -17,7 +20,7 @@ interface ScoredMeal {
   servings: number;
 }
 
-interface DealInfo {
+export interface DealInfo {
   id: string;
   storeBrandId: string;
   storeBrandName: string;
@@ -28,7 +31,7 @@ interface DealInfo {
   category: string | null;
 }
 
-interface LocationInfo {
+export interface LocationInfo {
   id: string;
   storeBrandId: string;
   brandName: string;
@@ -44,7 +47,7 @@ interface ImportantItemInfo {
   quantity: string | null;
 }
 
-interface BrandCostResult {
+export interface BrandCostResult {
   brandId: string;
   brandName: string;
   totalCost: number;
