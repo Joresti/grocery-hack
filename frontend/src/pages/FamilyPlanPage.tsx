@@ -5,6 +5,7 @@ import { useFamilyPlan } from '../hooks/useFamilyPlan';
 import { StoreMealDealList } from '../components/StoreMealDealList';
 import { SuggestSwapModal } from '../modals/SuggestSwapModal';
 import { PendingSuggestionModal } from '../modals/PendingSuggestionModal';
+import { MySuggestionsModal } from '../modals/MySuggestionsModal';
 import { LoadingSpinner } from '../components/shared/LoadingSpinner';
 import { Toast } from '../components/shared';
 import { ApiError } from '../services/api';
@@ -46,12 +47,31 @@ const bannerStyle: React.CSSProperties = {
   border: `1px solid ${colors.border}`,
   borderRadius: radii.card,
   padding: '16px 20px',
-  marginBottom: '24px',
+  marginBottom: '16px',
   fontFamily: fonts.body,
   fontWeight: fontWeights.regular,
   fontSize: '0.9rem',
   color: colors.textMuted,
   lineHeight: 1.5,
+};
+
+// Secondary pill — opens the read-only "My Suggestions" status view.
+const mySuggestionsButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontFamily: fonts.body,
+  fontWeight: fontWeights.semibold,
+  fontSize: '0.9rem',
+  color: colors.primary,
+  backgroundColor: colors.white,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.pill,
+  padding: '10px 22px',
+  minHeight: '44px',
+  marginBottom: '24px',
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
 };
 
 const errorCardStyle: React.CSSProperties = {
@@ -139,6 +159,7 @@ export default function FamilyPlanPage(): React.ReactElement {
   const [storeLimit, setStoreLimit] = useState<1 | 2>(1);
   const [suggestingFor, setSuggestingFor] = useState<PlanMeal | null>(null);
   const [viewingSuggestion, setViewingSuggestion] = useState<MealSuggestion | null>(null);
+  const [mySuggestionsOpen, setMySuggestionsOpen] = useState(false);
   const [successVisible, setSuccessVisible] = useState(false);
 
   // mealIds in the holder's plan that already have a pending suggestion from me.
@@ -200,6 +221,13 @@ export default function FamilyPlanPage(): React.ReactElement {
         <div style={bannerStyle}>
           Same plan {holderName} sees. You can suggest a swap on any meal — only {holderName} can change the plan directly.
         </div>
+        <button
+          type="button"
+          style={mySuggestionsButtonStyle}
+          onClick={() => setMySuggestionsOpen(true)}
+        >
+          My Suggestions
+        </button>
         <StoreMealDealList
           plan={data.plan}
           onStoreLimitChange={setStoreLimit}
@@ -232,6 +260,12 @@ export default function FamilyPlanPage(): React.ReactElement {
           onClose={() => setViewingSuggestion(null)}
         />
       )}
+
+      <MySuggestionsModal
+        isOpen={mySuggestionsOpen}
+        holderName={holderName}
+        onClose={() => setMySuggestionsOpen(false)}
+      />
 
       <Toast
         message="Suggestion sent!"

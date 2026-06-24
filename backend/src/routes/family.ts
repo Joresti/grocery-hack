@@ -3,7 +3,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { suggestMealBody, suggestionIdParams } from '../schemas/family.js';
 import type { SuggestMealInput, SuggestionIdParams } from '../schemas/family.js';
-import { getFamilyPlan, suggestMeal, getHolderSuggestions, acceptSuggestion, dismissSuggestion } from '../services/family.js';
+import { getFamilyPlan, suggestMeal, getHolderSuggestions, getMySuggestions, acceptSuggestion, dismissSuggestion } from '../services/family.js';
 
 const router = Router();
 
@@ -21,6 +21,17 @@ router.get('/plan', requireAuth, async (req, res, next) => {
 router.get('/suggestions', requireAuth, async (req, res, next) => {
   try {
     const data = await getHolderSuggestions(req.user!.userId);
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/v1/family/my-suggestions — the authenticated family member's own suggestions
+// (all statuses) on the holder's current-week plan; backs the read-only "My Suggestions" view
+router.get('/my-suggestions', requireAuth, async (req, res, next) => {
+  try {
+    const data = await getMySuggestions(req.user!.userId);
     res.json(data);
   } catch (err) {
     next(err);

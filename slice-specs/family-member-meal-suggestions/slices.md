@@ -77,7 +77,7 @@ the next migration is whatever Slice 5's swap needs, if any), and `api-contract.
 | 4 | Account holder reviews pending suggestions | Done | The account holder opens a Suggestions panel and sees each pending suggestion: the meal it would replace, the replacement, and who suggested it. |
 | 5 | Account holder accepts a suggestion → plan updated | Done | Accepting swaps the target meal for the replacement, re-matches the new meal's ingredients to deals at the plan's selected stores (shown on the list), recomputes costs/savings, and marks the suggestion accepted. |
 | 6 | Account holder dismisses a suggestion | Done | Dismissing a pending suggestion marks it dismissed and leaves the plan unchanged. |
-| 7 | Family member tracks suggestion status | Planned | "My Suggestions" shows each suggestion with its status (pending / accepted / dismissed), completing the accepted/dismissed feedback loop. |
+| 7 | Family member tracks suggestion status | Done | "My Suggestions" shows each suggestion with its status (pending / accepted / dismissed), completing the accepted/dismissed feedback loop. |
 | 8 | Account holder direct edit + permission hardening | Planned | The account holder can change a meal directly (no suggestion); family members are provably blocked from editing the plan and from accepting/dismissing (403 + no controls). |
 
 ## Roadmap narrative

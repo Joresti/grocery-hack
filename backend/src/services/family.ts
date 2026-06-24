@@ -3,6 +3,7 @@ import {
   getFamilyMemberLink,
   createMealSuggestion,
   getMySuggestionsForPlan,
+  getAllMySuggestionsForPlan,
   getPendingSuggestionForMeal,
   getHolderPendingSuggestions,
   getSuggestionById,
@@ -40,6 +41,10 @@ export interface FamilyPlanServiceResponse {
 }
 
 export interface HolderSuggestionsServiceResponse {
+  suggestions: Record<string, unknown>[];
+}
+
+export interface MySuggestionsServiceResponse {
   suggestions: Record<string, unknown>[];
 }
 
@@ -103,6 +108,29 @@ export async function getHolderSuggestions(
   holderId: string,
 ): Promise<HolderSuggestionsServiceResponse> {
   return { suggestions: await getHolderPendingSuggestions(holderId) };
+}
+
+/**
+ * Every suggestion the authenticated family member has made on the account holder's
+ * current-week plan, in all three statuses (pending / accepted / dismissed), newest
+ * first. Backs the family member's read-only "My Suggestions" status view. Mirrors
+ * getFamilyPlan's guards: a caller not linked to a holder gets 403 NOT_A_FAMILY_MEMBER,
+ * and a linked member whose holder has no current-week plan gets 404 NO_PLAN. Pure read —
+ * never mutates the plan.
+ */
+export async function getMySuggestions(userId: string): Promise<MySuggestionsServiceResponse> {
+  const link = await getFamilyMemberLink(userId);
+
+  if (!link?.accountHolderId) {
+    throwForbidden('NOT_A_FAMILY_MEMBER', "You're not linked to an account holder.");
+  }
+
+  const plan = await getCurrentPlan(link.accountHolderId);
+  if (!plan) {
+    throwNotFound('NO_PLAN', "The account holder doesn't have a plan for this week yet.");
+  }
+
+  return { suggestions: await getAllMySuggestionsForPlan(userId, plan.id as string) };
 }
 
 /**

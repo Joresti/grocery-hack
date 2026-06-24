@@ -8,6 +8,7 @@ vi.mock('../db/queries/family.js', () => ({
   getFamilyMemberLink: vi.fn(),
   createMealSuggestion: vi.fn(),
   getMySuggestionsForPlan: vi.fn(),
+  getAllMySuggestionsForPlan: vi.fn(),
   getPendingSuggestionForMeal: vi.fn(),
   getSuggestionById: vi.fn(),
   acceptSuggestionTransaction: vi.fn(),
@@ -33,7 +34,7 @@ vi.mock('../db/queries/optimizer.js', () => ({
 // Imports (after mocks)
 // ────────────────────────────────────────────────────────────
 
-import { suggestMeal, getFamilyPlan, acceptSuggestion, dismissSuggestion } from './family.js';
+import { suggestMeal, getFamilyPlan, getMySuggestions, acceptSuggestion, dismissSuggestion } from './family.js';
 import * as familyQueries from '../db/queries/family.js';
 import * as landingQueries from '../db/queries/landing.js';
 import * as mealQueries from '../db/queries/meals.js';
@@ -233,6 +234,62 @@ describe('getFamilyPlan', () => {
       code: 'NOT_A_FAMILY_MEMBER',
       status: 403,
     });
+  });
+});
+
+describe('getMySuggestions', () => {
+  const ACCEPTED_SUGGESTION = { ...CREATED_SUGGESTION, id: 'sug-2', status: 'accepted' };
+  const DISMISSED_SUGGESTION = { ...CREATED_SUGGESTION, id: 'sug-3', status: 'dismissed' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(familyQueries.getFamilyMemberLink).mockResolvedValue({
+      accountHolderId: JESSICA_ID,
+      holderDisplayName: 'Jessica M',
+    });
+    vi.mocked(landingQueries.getCurrentPlan).mockResolvedValue(planWithTargetIn('one'));
+    vi.mocked(familyQueries.getAllMySuggestionsForPlan).mockResolvedValue([
+      CREATED_SUGGESTION,
+      ACCEPTED_SUGGESTION,
+      DISMISSED_SUGGESTION,
+    ]);
+  });
+
+  it('returns all of the caller\'s suggestions (every status) for the holder\'s current plan', async () => {
+    const result = await getMySuggestions(SAM_ID);
+
+    expect(result.suggestions).toEqual([CREATED_SUGGESTION, ACCEPTED_SUGGESTION, DISMISSED_SUGGESTION]);
+    expect(result.suggestions.map((s) => (s as { status: string }).status)).toEqual([
+      'pending',
+      'accepted',
+      'dismissed',
+    ]);
+    expect(familyQueries.getAllMySuggestionsForPlan).toHaveBeenCalledWith(SAM_ID, PLAN_ID);
+    // The pending-only query that backs GET /family/plan markers must NOT be used here.
+    expect(familyQueries.getMySuggestionsForPlan).not.toHaveBeenCalled();
+  });
+
+  it('throws NOT_A_FAMILY_MEMBER (403) when the caller is not linked to a holder', async () => {
+    vi.mocked(familyQueries.getFamilyMemberLink).mockResolvedValue({
+      accountHolderId: null,
+      holderDisplayName: null,
+    });
+
+    await expect(getMySuggestions(JESSICA_ID)).rejects.toMatchObject({
+      code: 'NOT_A_FAMILY_MEMBER',
+      status: 403,
+    });
+    expect(familyQueries.getAllMySuggestionsForPlan).not.toHaveBeenCalled();
+  });
+
+  it('throws NO_PLAN (404) when the holder has no current-week plan', async () => {
+    vi.mocked(landingQueries.getCurrentPlan).mockResolvedValue(null);
+
+    await expect(getMySuggestions(SAM_ID)).rejects.toMatchObject({
+      code: 'NO_PLAN',
+      status: 404,
+    });
+    expect(familyQueries.getAllMySuggestionsForPlan).not.toHaveBeenCalled();
   });
 });
 

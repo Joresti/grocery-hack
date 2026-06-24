@@ -118,6 +118,35 @@ export async function getMySuggestionsForPlan(
 }
 
 /**
+ * Get *all* of the suggester's suggestions for a specific weekly plan, in every status
+ * (pending / accepted / dismissed), newest first. Backs the family member's
+ * "My Suggestions" status view (GET /family/my-suggestions). This is deliberately a
+ * SEPARATE function from getMySuggestionsForPlan — that one stays pending-only because
+ * it feeds GET /family/plan's "Suggestion pending" markers, and folding accepted/dismissed
+ * rows in would mis-mark swapped/rejected meals as still pending. Returns snake_case
+ * objects via mapSuggestionRow.
+ */
+export async function getAllMySuggestionsForPlan(
+  suggesterId: string,
+  weeklyPlanId: string,
+): Promise<Record<string, unknown>[]> {
+  const { rows } = await pool.query(
+    `SELECT s.*,
+            rm.name AS replacement_meal_name,
+            tm.name AS target_meal_name
+     FROM meal_suggestions s
+     JOIN meals rm ON rm.id = s.replacement_meal_id
+     LEFT JOIN meals tm ON tm.id = s.target_meal_id
+     WHERE s.suggester_id = $1
+       AND s.weekly_plan_id = $2
+     ORDER BY s.created_at DESC`,
+    [suggesterId, weeklyPlanId],
+  );
+
+  return (rows as Record<string, unknown>[]).map(mapSuggestionRow);
+}
+
+/**
  * The suggester's existing *pending* suggestion for a single target meal in a plan,
  * or null. Backs the duplicate-guard pre-check in `suggestMeal` (one pending
  * suggestion per meal per family member). Mirrors getMySuggestionsForPlan but

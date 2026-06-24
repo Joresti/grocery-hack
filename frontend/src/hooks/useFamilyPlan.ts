@@ -24,6 +24,8 @@ export function useSuggestMeal() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['familyPlan'] });
+      // Refresh "My Suggestions" so a just-submitted pending suggestion appears next open.
+      queryClient.invalidateQueries({ queryKey: ['mySuggestions'] });
     },
   });
 }

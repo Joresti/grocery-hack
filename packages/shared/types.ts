@@ -813,6 +813,14 @@ export interface HolderSuggestionsResponse {
   suggestions: MealSuggestion[];
 }
 
+export interface MySuggestionsResponse {
+  // The caller's own suggestions for the account holder's current-week plan, in
+  // every status (pending / accepted / dismissed), newest first. suggesterName is
+  // unused here — the caller is the suggester. Backs the family member's
+  // "My Suggestions" status view.
+  suggestions: MealSuggestion[];
+}
+
 export interface ApiError {
   error: true;
   code: string;
