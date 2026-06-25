@@ -8,6 +8,7 @@ import {
   getHolderPendingSuggestions,
   getSuggestionById,
   acceptSuggestionTransaction,
+  updatePlanRepresentationsStandalone,
   dismissSuggestion as dismissSuggestionQuery,
 } from '../db/queries/family.js';
 import { getCurrentPlan, getSavingsThisWeek } from '../db/queries/landing.js';
@@ -315,6 +316,81 @@ export async function acceptSuggestion(
   }
 
   return updated;
+}
+
+/**
+ * The account holder changes a meal in their **own** current-week plan **directly** — no
+ * suggestion in between. The target meal is swapped for the replacement and re-matched
+ * against the deals already at the plan's selected store(s) (no store re-pick, no full
+ * re-optimize), and the shopping list / subtotals / total / savings are recomputed —
+ * exactly as on `acceptSuggestion`, but persisting only the plan JSONB and creating or
+ * touching **no `meal_suggestions` row**. Returns the updated plan representations.
+ *
+ * Guards: 403 NOT_ACCOUNT_HOLDER (the inverse of getFamilyPlan's family-member guard — a
+ * caller with a non-null account_holder_id is a family member and is blocked here), 404
+ * NO_PLAN, 400 MEAL_NOT_IN_PLAN, 400 INVALID_MEAL. This is the holder's counterpart to the
+ * family member's `suggestMeal`, and the new guard the slice adds to make the permission
+ * boundary observable.
+ */
+export async function editPlanMeal(
+  holderId: string,
+  targetMealId: string,
+  replacementMealId: string,
+): Promise<{ one_store_optimized: GroceryPlan; two_store_optimized: GroceryPlan | null }> {
+  // 1. Caller must be an account holder (or standalone) — never a family member.
+  const link = await getFamilyMemberLink(holderId);
+  if (link?.accountHolderId) {
+    throwForbidden('NOT_ACCOUNT_HOLDER', 'Only the account holder can change the plan directly.');
+  }
+
+  // 2. The holder must have a current-week plan.
+  const plan = await getCurrentPlan(holderId);
+  if (!plan) {
+    throwNotFound('NO_PLAN', "You don't have a plan for this week yet.");
+  }
+
+  // 3. The target meal must actually be in that plan.
+  if (!planContainsMeal(plan, targetMealId)) {
+    throwBadRequest('MEAL_NOT_IN_PLAN', "That meal isn't in the current plan.");
+  }
+
+  // 4. The replacement meal must exist in the shared pool.
+  const replacement = await findMealForMatching(replacementMealId);
+  if (!replacement) {
+    throwBadRequest('INVALID_MEAL', "That replacement meal doesn't exist.");
+  }
+
+  // 5. Re-match the replacement against the plan's existing store brand(s) — identical
+  //    gather + swap as `acceptSuggestion`, once per representation (no store re-pick).
+  const oneStore = (plan.one_store_optimized as GroceryPlan | null) ?? null;
+  const twoStore = (plan.two_store_optimized as GroceryPlan | null) ?? null;
+  const reps = [oneStore, twoStore];
+
+  const deals = await findActiveDealsByBrands(collectPlanBrandIds(reps));
+  const dealsByBrand = buildDealsByBrand(deals);
+  const fallbackPrice = getAverageDealPrice(deals);
+
+  const profile = await findUserById(holderId);
+  const budget = profile?.budget ?? null;
+
+  const remainingMeals = await loadRemainingMeals(reps, targetMealId);
+
+  const newOneStore = oneStore
+    ? swapMealInPlan(oneStore, targetMealId, replacement, remainingMeals, dealsByBrand, fallbackPrice, budget)
+    : null;
+  const newTwoStore = twoStore
+    ? swapMealInPlan(twoStore, targetMealId, replacement, remainingMeals, dealsByBrand, fallbackPrice, budget)
+    : null;
+
+  if (!newOneStore) {
+    // one_store_optimized is the canonical representation and is always present.
+    throwNotFound('NO_PLAN', "You don't have a plan for this week yet.");
+  }
+
+  // 6. Persist the swapped plan JSONB only — no suggestion row is created or touched.
+  await updatePlanRepresentationsStandalone(plan.id as string, newOneStore, newTwoStore);
+
+  return { one_store_optimized: newOneStore, two_store_optimized: newTwoStore };
 }
 
 /**

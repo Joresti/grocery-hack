@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { suggestMealBody, suggestionIdParams } from '../schemas/family.js';
-import type { SuggestMealInput, SuggestionIdParams } from '../schemas/family.js';
-import { getFamilyPlan, suggestMeal, getHolderSuggestions, getMySuggestions, acceptSuggestion, dismissSuggestion } from '../services/family.js';
+import { suggestMealBody, editPlanMealBody, suggestionIdParams } from '../schemas/family.js';
+import type { SuggestMealInput, EditPlanMealInput, SuggestionIdParams } from '../schemas/family.js';
+import { getFamilyPlan, suggestMeal, editPlanMeal, getHolderSuggestions, getMySuggestions, acceptSuggestion, dismissSuggestion } from '../services/family.js';
 
 const router = Router();
 
@@ -81,6 +81,24 @@ router.post(
       const { targetMealId, replacementMealId } = req.body as SuggestMealInput;
       const suggestion = await suggestMeal(req.user!.userId, targetMealId, replacementMealId);
       res.status(201).json(suggestion);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// POST /api/v1/family/plan/edit — account holder changes a meal in their OWN plan directly
+// (no suggestion). A family member calling this gets 403 NOT_ACCOUNT_HOLDER. Returns 200
+// (no resource created) with the updated plan representations.
+router.post(
+  '/plan/edit',
+  requireAuth,
+  validate({ body: editPlanMealBody }),
+  async (req, res, next) => {
+    try {
+      const { targetMealId, replacementMealId } = req.body as EditPlanMealInput;
+      const plan = await editPlanMeal(req.user!.userId, targetMealId, replacementMealId);
+      res.json(plan);
     } catch (err) {
       next(err);
     }

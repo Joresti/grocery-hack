@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Meal } from '@groceryhack/shared/types';
+import type { Meal, PlanMeal } from '@groceryhack/shared/types';
 import { colors, fonts, spacing } from '../theme/tokens';
 import { useLandingData } from '../hooks/useLandingData';
 import { useAuth } from '../hooks/useAuth';
@@ -22,6 +22,8 @@ import { OptimizerModal } from '../modals/OptimizerModal';
 import { ImportantItemsModal } from '../modals/ImportantItemsModal';
 import { ShareContactModal } from '../modals/ShareContactModal';
 import { ReviewSuggestionsModal } from '../modals/ReviewSuggestionsModal';
+import { ChangeMealModal } from '../modals/ChangeMealModal';
+import { Toast } from '../components/shared';
 
 const pageStyle: React.CSSProperties = {
   backgroundColor: colors.bg,
@@ -142,6 +144,9 @@ export default function LandingPage(): React.ReactElement {
     shareType?: 'cook_for_me' | 'make_for_you';
   }>({});
   const [storeLimit, setStoreLimit] = useState<1 | 2>(2);
+  // Holder direct-edit: the plan meal currently being changed, and a success confirmation.
+  const [editingMeal, setEditingMeal] = useState<PlanMeal | null>(null);
+  const [mealChangedVisible, setMealChangedVisible] = useState(false);
 
   const handleMealTap = useCallback((meal: Meal) => {
     setRecipeModalMeal(meal);
@@ -288,6 +293,7 @@ export default function LandingPage(): React.ReactElement {
               plan={data.currentPlan}
               storeLimit={storeLimit}
               onStoreLimitChange={setStoreLimit}
+              onEditMeal={setEditingMeal}
             />
             <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: '8px' }}>
               <button
@@ -349,6 +355,18 @@ export default function LandingPage(): React.ReactElement {
         holderName={data.user.displayName ?? 'you'}
       />
 
+      {editingMeal && (
+        <ChangeMealModal
+          isOpen={true}
+          targetMeal={editingMeal}
+          onClose={() => setEditingMeal(null)}
+          onApplied={() => {
+            setEditingMeal(null);
+            setMealChangedVisible(true);
+          }}
+        />
+      )}
+
       <ShareContactModal
         isOpen={shareModalOpen}
         onClose={() => {
@@ -358,6 +376,13 @@ export default function LandingPage(): React.ReactElement {
         mealId={shareContext.mealId}
         shareType={shareContext.shareType}
         planToken={shareContext.planToken}
+      />
+
+      <Toast
+        message="Meal changed!"
+        type="success"
+        visible={mealChangedVisible}
+        onDismiss={() => setMealChangedVisible(false)}
       />
     </div>
   );

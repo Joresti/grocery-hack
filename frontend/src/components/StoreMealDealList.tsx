@@ -20,6 +20,12 @@ interface StoreMealDealListProps {
   pendingSuggestionMealIds?: Set<string>;
   /** When provided, tapping a "Suggestion pending" marker reveals the existing suggestion. */
   onViewPendingSuggestion?: (meal: PlanMeal) => void;
+  /**
+   * When provided, each meal shows a "Change meal" affordance (account-holder view) that
+   * applies a direct edit. Mutually exclusive per host with onSuggestSwap: the holder view
+   * (LandingPage) passes onEditMeal; the family view (FamilyPlanPage) passes onSuggestSwap.
+   */
+  onEditMeal?: (meal: PlanMeal) => void;
 }
 
 type ViewMode = 'byMeal' | 'viewAll';
@@ -542,6 +548,7 @@ function StoreSection({
   onSuggestSwap,
   pendingSuggestionMealIds,
   onViewPendingSuggestion,
+  onEditMeal,
 }: {
   stop: PlanStop;
   viewMode: ViewMode;
@@ -550,6 +557,7 @@ function StoreSection({
   onSuggestSwap?: (meal: PlanMeal) => void;
   pendingSuggestionMealIds?: Set<string>;
   onViewPendingSuggestion?: (meal: PlanMeal) => void;
+  onEditMeal?: (meal: PlanMeal) => void;
 }): React.ReactElement {
   const storageKey = `gh-checked-${planToken}-${stop.storeLocationId}`;
 
@@ -627,8 +635,17 @@ function StoreSection({
               >
                 <span style={mealNameListStyle}>{meal.name}</span>
                 <div style={mealRightStyle}>
-                  {onSuggestSwap &&
-                    (hasPending ? (
+                  {onEditMeal ? (
+                    <button
+                      type="button"
+                      style={suggestSwapButtonStyle}
+                      onClick={() => onEditMeal(meal)}
+                      aria-label={`Change ${meal.name}`}
+                    >
+                      Change meal
+                    </button>
+                  ) : onSuggestSwap ? (
+                    hasPending ? (
                       <button
                         type="button"
                         style={pillPendingButtonStyle}
@@ -646,7 +663,8 @@ function StoreSection({
                       >
                         Suggest a swap
                       </button>
-                    ))}
+                    )
+                  ) : null}
                   <span style={mealCostStyle}>
                     {formatPrice(meal.costPerServing)}/serving
                   </span>
@@ -702,6 +720,7 @@ export function StoreMealDealList({
   onSuggestSwap,
   pendingSuggestionMealIds,
   onViewPendingSuggestion,
+  onEditMeal,
 }: StoreMealDealListProps): React.ReactElement | null {
   const [viewMode, setViewMode] = useState<ViewMode>('byMeal');
 
@@ -837,14 +856,23 @@ export function StoreMealDealList({
         </div>
       )}
 
-      {/* By-meal action panel — suggest a swap for the selected meal */}
-      {hasMealsInAnyStop && viewMode === 'byMeal' && onSuggestSwap && selectedMeal && (
+      {/* By-meal action panel — change (holder) or suggest a swap (family) for the selected meal */}
+      {hasMealsInAnyStop && viewMode === 'byMeal' && (onSuggestSwap || onEditMeal) && selectedMeal && (
         <div style={mealActionStyle}>
           <div>
             <div style={maLabelStyle}>Showing ingredients for</div>
             <div style={maNameStyle}>{selectedMealName}</div>
           </div>
-          {selectedMealHasPending ? (
+          {onEditMeal ? (
+            <button
+              type="button"
+              style={suggestSwapButtonStyle}
+              onClick={() => onEditMeal(selectedMeal)}
+              aria-label={`Change ${selectedMealName}`}
+            >
+              Change meal
+            </button>
+          ) : selectedMealHasPending ? (
             <button
               type="button"
               style={pillPendingButtonStyle}
@@ -857,7 +885,7 @@ export function StoreMealDealList({
             <button
               type="button"
               style={suggestSwapButtonStyle}
-              onClick={() => onSuggestSwap(selectedMeal)}
+              onClick={() => onSuggestSwap?.(selectedMeal)}
               aria-label={`Suggest a swap for ${selectedMealName}`}
             >
               Suggest a swap
@@ -876,6 +904,7 @@ export function StoreMealDealList({
           onSuggestSwap={onSuggestSwap}
           pendingSuggestionMealIds={pendingSuggestionMealIds}
           onViewPendingSuggestion={onViewPendingSuggestion}
+          onEditMeal={onEditMeal}
         />
       ))}
 

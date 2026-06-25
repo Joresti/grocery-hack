@@ -212,7 +212,8 @@ function formatDifficulty(difficulty: string): string {
   return difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
 }
 
-function ReplacementCard({
+// Exported so the holder's ChangeMealModal can reuse the exact same swipe deck.
+export function ReplacementCard({
   meal,
   exitDirection,
   disabled,
@@ -314,7 +315,9 @@ function ReplacementCard({
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+// Exported so the holder's ChangeMealModal renders identical modal chrome (header, card
+// area, action bar) without duplicating the stylesheet.
+export const styles: Record<string, React.CSSProperties> = {
   fullScreen: {
     position: 'fixed',
     top: 0,

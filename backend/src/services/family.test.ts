@@ -12,6 +12,7 @@ vi.mock('../db/queries/family.js', () => ({
   getPendingSuggestionForMeal: vi.fn(),
   getSuggestionById: vi.fn(),
   acceptSuggestionTransaction: vi.fn(),
+  updatePlanRepresentationsStandalone: vi.fn(),
   dismissSuggestion: vi.fn(),
 }));
 
@@ -34,7 +35,7 @@ vi.mock('../db/queries/optimizer.js', () => ({
 // Imports (after mocks)
 // ────────────────────────────────────────────────────────────
 
-import { suggestMeal, getFamilyPlan, getMySuggestions, acceptSuggestion, dismissSuggestion } from './family.js';
+import { suggestMeal, getFamilyPlan, getMySuggestions, acceptSuggestion, dismissSuggestion, editPlanMeal } from './family.js';
 import * as familyQueries from '../db/queries/family.js';
 import * as landingQueries from '../db/queries/landing.js';
 import * as mealQueries from '../db/queries/meals.js';
@@ -503,5 +504,186 @@ describe('dismissSuggestion', () => {
       code: 'SUGGESTION_NOT_PENDING',
       status: 409,
     });
+  });
+});
+
+describe('editPlanMeal', () => {
+  /** A full one-store plan whose stop holds the target meal and an on-sale line for it. */
+  function fullOneStorePlan(): Record<string, unknown> {
+    return {
+      id: PLAN_ID,
+      token: 'tok',
+      week_of: '2026-06-15',
+      one_store_optimized: {
+        stops: [
+          {
+            storeBrandName: 'Walmart',
+            storeLocationId: 'loc-1',
+            storeAddress: '1 Rd',
+            storeBrandId: 'brand-a',
+            meals: [
+              { mealId: TARGET_MEAL_ID, name: 'Beef Taco Bowl', costPerServing: 1.5, totalCost: 6, savings: 2 },
+            ],
+            items: [
+              { name: 'Ground Beef', quantity: '1', salePrice: 6, regularPrice: 8, isOnSale: true, dealNote: null, forMeal: 'Beef Taco Bowl' },
+            ],
+            subtotal: 6,
+          },
+        ],
+        total: 6,
+        budgetRemaining: 94,
+        estimatedSavings: 2,
+      },
+      two_store_optimized: null,
+      watchlist_alerts: [],
+      recipe_alerts: [],
+      created_at: '2026-06-15T00:00:00.000Z',
+    };
+  }
+
+  /** A plan where the target meal appears ONLY in the two-store representation. */
+  function twoStoreOnlyPlan(): Record<string, unknown> {
+    const targetStop = {
+      storeBrandName: 'Walmart',
+      storeLocationId: 'loc-1',
+      storeAddress: '1 Rd',
+      storeBrandId: 'brand-a',
+      meals: [
+        { mealId: TARGET_MEAL_ID, name: 'Beef Taco Bowl', costPerServing: 1.5, totalCost: 6, savings: 2 },
+      ],
+      items: [],
+      subtotal: 6,
+    };
+    const otherStop = {
+      storeBrandName: 'No Frills',
+      storeLocationId: 'loc-2',
+      storeAddress: '2 Rd',
+      storeBrandId: 'brand-b',
+      meals: [
+        { mealId: 'aaaaaaaa-0000-0000-0000-000000000000', name: 'Other Meal', costPerServing: 1, totalCost: 4, savings: 1 },
+      ],
+      items: [],
+      subtotal: 4,
+    };
+    return {
+      id: PLAN_ID,
+      token: 'tok',
+      week_of: '2026-06-15',
+      // one-store does NOT contain the target (only 'Other Meal')
+      one_store_optimized: { stops: [otherStop], total: 4, budgetRemaining: 96, estimatedSavings: 1 },
+      // two-store DOES contain the target
+      two_store_optimized: { stops: [targetStop], total: 6, budgetRemaining: 94, estimatedSavings: 2 },
+      watchlist_alerts: [],
+      recipe_alerts: [],
+      created_at: '2026-06-15T00:00:00.000Z',
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Jessica is the account holder — accountHolderId === null means "not a family member".
+    vi.mocked(familyQueries.getFamilyMemberLink).mockResolvedValue({
+      accountHolderId: null,
+      holderDisplayName: null,
+    });
+    vi.mocked(landingQueries.getCurrentPlan).mockResolvedValue(fullOneStorePlan());
+    vi.mocked(mealQueries.findMealForMatching).mockResolvedValue({
+      id: REPLACEMENT_MEAL_ID,
+      name: 'Creamy Mushroom Pasta',
+      ingredientKeywords: ['mushroom', 'pasta'],
+      servings: 4,
+    });
+    vi.mocked(optimizerQueries.findActiveDealsByBrands).mockResolvedValue([]);
+    vi.mocked(optimizerQueries.findUserById).mockResolvedValue({
+      id: JESSICA_ID,
+      postalCode: 'L8P1A1',
+      lat: null,
+      lng: null,
+      budget: 100,
+      maxStores: 1,
+      dietaryRestrictions: [],
+    });
+    vi.mocked(familyQueries.updatePlanRepresentationsStandalone).mockResolvedValue(undefined);
+  });
+
+  it('swaps the target for the replacement, persists via updatePlanRepresentationsStandalone, and writes no suggestion', async () => {
+    const result = await editPlanMeal(JESSICA_ID, TARGET_MEAL_ID, REPLACEMENT_MEAL_ID);
+
+    // Persisted exactly once, with the swapped plan JSONB.
+    expect(familyQueries.updatePlanRepresentationsStandalone).toHaveBeenCalledTimes(1);
+    const [planId, newOneStore] = vi.mocked(familyQueries.updatePlanRepresentationsStandalone).mock.calls[0]!;
+    expect(planId).toBe(PLAN_ID);
+    const persistedIds = newOneStore.stops.flatMap((s) => s.meals.map((m) => m.mealId));
+    expect(persistedIds).not.toContain(TARGET_MEAL_ID);
+    expect(persistedIds).toContain(REPLACEMENT_MEAL_ID);
+
+    // Returned reps reflect the swap.
+    const returnedIds = result.one_store_optimized.stops.flatMap((s) => s.meals.map((m) => m.mealId));
+    expect(returnedIds).toContain(REPLACEMENT_MEAL_ID);
+    expect(returnedIds).not.toContain(TARGET_MEAL_ID);
+
+    // The defining difference from acceptSuggestion: NO suggestion row is created or touched.
+    expect(familyQueries.acceptSuggestionTransaction).not.toHaveBeenCalled();
+    expect(familyQueries.createMealSuggestion).not.toHaveBeenCalled();
+    expect(familyQueries.getSuggestionById).not.toHaveBeenCalled();
+  });
+
+  it('throws NOT_ACCOUNT_HOLDER (403) when the caller is a family member, and mutates nothing', async () => {
+    // Sam is linked to Jessica → his account_holder_id is non-null → he is a family member.
+    vi.mocked(familyQueries.getFamilyMemberLink).mockResolvedValue({
+      accountHolderId: JESSICA_ID,
+      holderDisplayName: 'Jessica M',
+    });
+
+    await expect(editPlanMeal(SAM_ID, TARGET_MEAL_ID, REPLACEMENT_MEAL_ID)).rejects.toMatchObject({
+      code: 'NOT_ACCOUNT_HOLDER',
+      status: 403,
+    });
+    expect(familyQueries.updatePlanRepresentationsStandalone).not.toHaveBeenCalled();
+    // Blocked before any plan is loaded.
+    expect(landingQueries.getCurrentPlan).not.toHaveBeenCalled();
+  });
+
+  it('throws NO_PLAN (404) when the holder has no current plan', async () => {
+    vi.mocked(landingQueries.getCurrentPlan).mockResolvedValue(null);
+
+    await expect(editPlanMeal(JESSICA_ID, TARGET_MEAL_ID, REPLACEMENT_MEAL_ID)).rejects.toMatchObject({
+      code: 'NO_PLAN',
+      status: 404,
+    });
+    expect(familyQueries.updatePlanRepresentationsStandalone).not.toHaveBeenCalled();
+  });
+
+  it('throws MEAL_NOT_IN_PLAN (400) when the target meal is not in the plan', async () => {
+    await expect(
+      editPlanMeal(JESSICA_ID, 'ffffffff-ffff-ffff-ffff-ffffffffffff', REPLACEMENT_MEAL_ID),
+    ).rejects.toMatchObject({ code: 'MEAL_NOT_IN_PLAN', status: 400 });
+    expect(mealQueries.findMealForMatching).not.toHaveBeenCalled();
+    expect(familyQueries.updatePlanRepresentationsStandalone).not.toHaveBeenCalled();
+  });
+
+  it('throws INVALID_MEAL (400) when the replacement meal does not exist', async () => {
+    vi.mocked(mealQueries.findMealForMatching).mockResolvedValue(null);
+
+    await expect(editPlanMeal(JESSICA_ID, TARGET_MEAL_ID, REPLACEMENT_MEAL_ID)).rejects.toMatchObject({
+      code: 'INVALID_MEAL',
+      status: 400,
+    });
+    expect(familyQueries.updatePlanRepresentationsStandalone).not.toHaveBeenCalled();
+  });
+
+  it('swaps a target meal that only appears in the two-store representation', async () => {
+    vi.mocked(landingQueries.getCurrentPlan).mockResolvedValue(twoStoreOnlyPlan());
+
+    const result = await editPlanMeal(JESSICA_ID, TARGET_MEAL_ID, REPLACEMENT_MEAL_ID);
+
+    expect(familyQueries.updatePlanRepresentationsStandalone).toHaveBeenCalledTimes(1);
+    // The two-store rep is where the swap lands; one-store is returned unchanged (no target).
+    const twoIds = result.two_store_optimized!.stops.flatMap((s) => s.meals.map((m) => m.mealId));
+    expect(twoIds).toContain(REPLACEMENT_MEAL_ID);
+    expect(twoIds).not.toContain(TARGET_MEAL_ID);
+    const oneIds = result.one_store_optimized.stops.flatMap((s) => s.meals.map((m) => m.mealId));
+    expect(oneIds).not.toContain(TARGET_MEAL_ID);
+    expect(oneIds).not.toContain(REPLACEMENT_MEAL_ID);
   });
 });

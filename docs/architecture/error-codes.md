@@ -133,9 +133,10 @@ These can be returned by any endpoint.
 | Code | HTTP | Endpoint | Message | When |
 |------|------|----------|---------|------|
 | `NOT_A_FAMILY_MEMBER` | 403 | GET /family/plan, GET /family/my-suggestions, POST /family/plan/suggestions | "You're not linked to an account holder." | Caller's `account_holder_id` is null (not a family member). |
-| `NO_PLAN` | 404 | GET /family/plan, GET /family/my-suggestions, POST /family/plan/suggestions | "The account holder doesn't have a plan for this week yet." | The linked holder has no current-week `weekly_plans` row. |
-| `MEAL_NOT_IN_PLAN` | 400 | POST /family/plan/suggestions | "That meal isn't in the current plan." | `target_meal_id` is not a `PlanMeal.mealId` in the holder's current plan JSONB. |
-| `INVALID_MEAL` | 400 | POST /family/plan/suggestions | "That replacement meal doesn't exist." | `replacement_meal_id` references a nonexistent meal. |
+| `NOT_ACCOUNT_HOLDER` | 403 | POST /family/plan/edit | "Only the account holder can change the plan directly." | Caller's `account_holder_id` is **non-null** (a family member) — the inverse of `NOT_A_FAMILY_MEMBER`. Only an account holder / standalone account may directly edit a plan. |
+| `NO_PLAN` | 404 | GET /family/plan, GET /family/my-suggestions, POST /family/plan/suggestions, POST /family/plan/edit | "The account holder doesn't have a plan for this week yet." | The linked holder has no current-week `weekly_plans` row. (For `/family/plan/edit` the message is "You don't have a plan for this week yet.") |
+| `MEAL_NOT_IN_PLAN` | 400 | POST /family/plan/suggestions, POST /family/plan/edit | "That meal isn't in the current plan." | `target_meal_id` is not a `PlanMeal.mealId` in the (holder's) current plan JSONB. |
+| `INVALID_MEAL` | 400 | POST /family/plan/suggestions, POST /family/plan/edit | "That replacement meal doesn't exist." | `replacement_meal_id` references a nonexistent meal. |
 | `DUPLICATE_SUGGESTION` | 409 | POST /family/plan/suggestions | "You already have a pending suggestion for this meal." | A pending suggestion from this family member already exists for the target meal (one pending suggestion per meal per family member). |
 | `SUGGESTION_NOT_FOUND` | 404 | POST /family/suggestions/{id}/accept, POST /family/suggestions/{id}/dismiss | "That suggestion doesn't exist." | No `meal_suggestions` row with that id. |
 | `NOT_SUGGESTION_HOLDER` | 403 | POST /family/suggestions/{id}/accept, POST /family/suggestions/{id}/dismiss | "That suggestion isn't addressed to you." | The suggestion's `account_holder_id` is not the caller (a family member can never accept or dismiss — their id is never an `account_holder_id`). |

@@ -78,7 +78,7 @@ the next migration is whatever Slice 5's swap needs, if any), and `api-contract.
 | 5 | Account holder accepts a suggestion → plan updated | Done | Accepting swaps the target meal for the replacement, re-matches the new meal's ingredients to deals at the plan's selected stores (shown on the list), recomputes costs/savings, and marks the suggestion accepted. |
 | 6 | Account holder dismisses a suggestion | Done | Dismissing a pending suggestion marks it dismissed and leaves the plan unchanged. |
 | 7 | Family member tracks suggestion status | Done | "My Suggestions" shows each suggestion with its status (pending / accepted / dismissed), completing the accepted/dismissed feedback loop. |
-| 8 | Account holder direct edit + permission hardening | Planned | The account holder can change a meal directly (no suggestion); family members are provably blocked from editing the plan and from accepting/dismissing (403 + no controls). |
+| 8 | Account holder direct edit + permission hardening | Done | The account holder can change a meal directly (no suggestion); family members are provably blocked from editing the plan and from accepting/dismissing (403 + no controls). |
 
 ## Roadmap narrative
 Slice 1 is the walking skeleton: it stands up the only genuinely new seam — a
@@ -93,8 +93,12 @@ status view that closes the loop opened by 5 and 6. Slice 8 hardens the permissi
 boundary the feature is really about — adding the account holder's own direct-edit
 capability (reusing slice 5's swap) and making the family member's inability to edit
 or to accept/dismiss explicit and verifiable. Authorization checks are added *within*
-each slice that creates an endpoint (e.g. accept is account-holder-only from slice 5);
-slice 8 makes the negative cases observable and tested rather than adding guards late.
+each slice that creates an endpoint: the holder-only `NOT_SUGGESTION_HOLDER` guard on
+accept/dismiss — and its unit tests (`backend/src/services/family.test.ts:389-396`,
+`:480-487`) — already landed with slices 5–6. So slice 8 *verifies and makes observable*
+that existing accept/dismiss block (a live 403 + no UI controls on `/family`) and *adds*
+the one genuinely new guard — `NOT_ACCOUNT_HOLDER` on the new holder-only direct-edit
+endpoint — rather than adding guards late.
 
 ## Open questions
 _Resolved on review (folded into Approach notes #1–2, #4–5): the family-member↔holder link

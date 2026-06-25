@@ -376,3 +376,28 @@ export async function acceptSuggestionTransaction(
     client.release();
   }
 }
+
+/**
+ * Persist the swapped plan representations on `weekly_plans` in their own transaction —
+ * the standalone counterpart to `acceptSuggestionTransaction` for the account holder's
+ * direct edit, which touches no `meal_suggestions` row. Wraps the shared
+ * `updatePlanRepresentations` in a BEGIN/COMMIT (style parity with the accept path) and
+ * writes only the two JSONB columns, preserving plan identity (token, week_of, …).
+ */
+export async function updatePlanRepresentationsStandalone(
+  planId: string,
+  oneStoreOptimized: GroceryPlan,
+  twoStoreOptimized: GroceryPlan | null,
+): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await updatePlanRepresentations(client, planId, oneStoreOptimized, twoStoreOptimized);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
