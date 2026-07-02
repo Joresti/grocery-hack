@@ -7,6 +7,7 @@ describe('registerSchema', () => {
       email: 'test@example.com',
       password: 'password123',
       postal_code: 'L8P 1A1',
+      display_name: 'Test User',
     });
     expect(result.email).toBe('test@example.com');
     expect(result.postalCode).toBe('L8P 1A1');
@@ -90,6 +91,7 @@ describe('registerSchema', () => {
       email: 'test@example.com',
       password: 'abcdefgh',
       postal_code: 'L8P 1A1',
+      display_name: 'Test User',
     });
     expect(result.password).toBe('abcdefgh');
   });
@@ -117,6 +119,7 @@ describe('registerSchema', () => {
       email: 'test@example.com',
       password: 'password123',
       postal_code: 'L8P 1A1',
+      display_name: 'Test User',
       max_stores: 1,
     });
     expect(result.maxStores).toBe(1);
@@ -127,6 +130,7 @@ describe('registerSchema', () => {
       email: 'test@example.com',
       password: 'password123',
       postal_code: 'L8P 1A1',
+      display_name: 'Test User',
       max_stores: 2,
     });
     expect(result.maxStores).toBe(2);
@@ -137,6 +141,7 @@ describe('registerSchema', () => {
       email: 'test@example.com',
       password: 'password123',
       postal_code: 'L8P 1A1',
+      display_name: 'Test User',
     });
     expect(result.maxStores).toBeUndefined();
   });
@@ -146,6 +151,7 @@ describe('registerSchema', () => {
       email: 'test@example.com',
       password: 'password123',
       postal_code: 'L8P 1A1',
+      display_name: 'Test User',
     });
     expect(result.householdSize).toBeUndefined();
   });
